@@ -168,6 +168,9 @@ sn=$(htos $(awk '/serial_number/ {printf $NF}' <<< "$MSGI"))
 cn=$(htos $(awk '/product_name/  {printf $NF}' <<< "$MSGI"))
 rv=$(htos $(awk '/revision/      {printf $NF}' <<< "$MSGI"))
 
+# PSID
+psid=$(htos $(awk '/^psid/       {printf $NF}' <<< "$MGIR"))
+
 # version
 maj=$(htod $(awk '/extended_major/ {printf $NF}' <<< "$MGIR"))
 min=$(htod $(awk '/extended_minor/ {printf $NF}' <<< "$MGIR"))
@@ -226,6 +229,7 @@ out_kv "S/N" "$sn"
 out_kv "hw rev." "$rv"
 out_kv "codename" "$cn"
 sep
+out_kv "PSID" "$psid"
 out_kv "fw version" "$(printf "%d.%04d.%04d" $maj $min $sub)"
 out_kv "uptime [h:m:s]" "$(sec_to_hms $s_uptime)"
 sep
