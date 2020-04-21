@@ -95,6 +95,7 @@ usage() {
     cat << EOU
 Usage: ${0##*/} -d <device> [-T]
     -d <device>     MST device name. Run "mst status" to get the devices list
+    -T              get QSFP modules temperature
 
 EOU
     return 0
@@ -122,6 +123,9 @@ done
 
 
 ## -- checks ------------------------------------------------------------------
+
+# id
+[ `id -u` = 0 ] || err "must run as root, aborting."
 
 # tools
 for t in awk sed tr; do
@@ -157,6 +161,21 @@ MTMP=$(get_reg MTMP "sensor_index=0x0")
 MTCAP=$(get_reg MTCAP)
 MGPIR=$(get_reg MGPIR 2>&1 || true ) # may not work everywhere
 #MFSM
+
+# probe number of phys
+_nm=$(awk '/num_of_modules/ {printf $NF}' <<< "$MGPIR")
+if [[ $_nm =~ ^0x ]]; then
+    nm=$(htod $_nm)
+else # we need to probe modules one by one
+    # TODO parallelize it
+    rc=0 m=1
+    while true; do
+        o=$(get_reg PAOS "swid=0x0,local_port=0x$(dtoh $m)" 2>&1) \
+            && ((m++)) \
+            || break
+    done
+    nm=$((m-1))
+fi
 
 # uptime
 h_uptime=$(awk '/uptime/ {print $NF}' <<< "$MGIR")
@@ -209,6 +228,19 @@ _mt=$(htod $(awk '/max_temperature / {printf $NF}' <<< "$MTMP"))
 tp=$((_tp/8))
 mt=$((_mt/8))
 
+# optionally get QSFP port temperatures
+[[ "$opt_T" == "1" ]] && {
+    while read -r p o; do
+        pt[$p]=$(($(htod $o)/8))
+    done < <(for p in $(seq 1 $nm); do
+                ( h=$(dtoh $((p+63)))
+                  t=$(get_reg MTMP "sensor_index=0x$h" |\
+                      awk '/^temperature / {print $NF}')
+                  echo "$p $t" ) &
+             done)
+}
+
+
 
 # fans
 # alerts over/under limit #FORE
@@ -230,7 +262,9 @@ out_kv "hw rev." "$rv"
 out_kv "codename" "$cn"
 sep
 out_kv "PSID" "$psid"
+out_kv "#QSFP modules" "$nm"
 out_kv "fw version" "$(printf "%d.%04d.%04d" $maj $min $sub)"
+sep
 out_kv "uptime [h:m:s]" "$(sec_to_hms $s_uptime)"
 sep
 [[ "${ps[${psu_idx:0:1}.pn]}" != "" ]] && {
