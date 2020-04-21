@@ -130,11 +130,16 @@ done
 [ `id -u` = 0 ] || err "must run as root, aborting."
 
 # tools
-for t in awk sed tr; do
-    type $t &>/dev/null || err "$t not found"
-done
-for t in mst mlxreg; do
-    type $t &>/dev/null || err "$t not found, please install MFT ($MFT_URL)"
+declare -A tools
+tools[awk]=""
+tools[sed]=""
+tools[tr]=""
+tools[mst]="MFT ($MFT_URL)"
+tools[mlxreg]="MFT ($MFT_URL)"
+tools[smpquery]="infiniband-diags"
+for t in ${!tools[@]}; do
+    type $t &>/dev/null || \
+        err "$t not found${tools[$t]:+, please install ${tools[$t]}}"
 done
 # check MFT version
 cur=$(mst version | awk '{gsub(/,/,""); print $3}')
