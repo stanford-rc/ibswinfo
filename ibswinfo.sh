@@ -21,12 +21,14 @@ set -u      # stop on uninitialized variable
 
 MFT_URL="https://www.mellanox.com/products/adapter-software/firmware-tools"
 
+# TODO; determine that
+num_fans=8
 
 ## -- functions ---------------------------------------------------------------
 
 # display error and quit
 err() {
-    [[ "$@" != "" ]] && echo "error: $@"
+    [[ "$@" != "" ]] && echo "error: $@" >&2
     exit 1
 }
 
