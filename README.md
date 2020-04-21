@@ -5,7 +5,7 @@ Get information from unmanaged Infiniband switches
 ## Description
  `ibswinfo` is a simple script to get information from unmanaged Infiniband switches.
 
-Mellanox Infiniband switches come in two flavors: 
+Mellanox Infiniband switches come in two flavors:
 * managed switches have their own management controller, which allow monitoring fan speeds and temperatures, getting serial numbers and updating formwares over a variety of protocols (SSH, SNMP, HTTPs...)
 * unmanaged switches are just that: unmanaged. Their firmware can be upgraded in-band, but the only way to monitor their status is to take a direct look at their PSU and fan LEDs. They're either green, or red.
 
@@ -16,7 +16,8 @@ Mellanox Infiniband switches come in two flavors:
 ## Dependencies
 
 * [Mellanox Firmware Tools (MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) >= 4.14.0
-* `bash`, `awk` and `sed`
+* [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
+* `bash`, `coreutils`, `awk`, `sed`
 
 
 ## Supported information
@@ -28,15 +29,15 @@ Mellanox Infiniband switches come in two flavors:
 | PSID       |        | fan speeds   |
 | PSU info   |        |              |
 | FW version |        |              |
- 
-   
-  
- ## Installation 
- 
- It's a shell script, so it's pretty much copy and execute.
- 
- 
- ## Example output
+
+
+
+## Installation
+
+It's a shell script, so....
+
+
+## Example output
 
 ```
 # ./ibswinfo.sh -d /dev/mst/<device>
