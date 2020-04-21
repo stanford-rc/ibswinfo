@@ -21,22 +21,14 @@ Mellanox Infiniband switches come in two flavors:
 
 ## Supported information
 
-- [x] inventory
-  - [x] switch type
-  - [x] part number
-  - [x] serial number
-  - [x] PSID
-  - [x] PSU information
-  - [x] firmware version
+| inventory  | status | vitals       |
+| ---------- | ------ | ------------ |
+| model P/N  | fans   | uptime       |
+| S/N        | PSU    | temperatures |
+| PSID       |        | fan speeds   |
+| PSU info   |        |              |
+| FW version |        |              |
  
- - [ ] status
-   - [ ] fans
-   - [ ] PSU
- 
- - [ ] vitals
-   - [x] uptime
-   - [x] temperatures
-   - [ ] fan speeds
    
   
  ## Installation 
