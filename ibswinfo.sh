@@ -17,12 +17,13 @@
 set -e      # stop on error
 set -u      # stop on uninitialized variable
 
+
+
 ## -- constants ---------------------------------------------------------------
 
 MFT_URL="https://www.mellanox.com/products/adapter-software/firmware-tools"
 
-# TODO; determine that
-num_fans=8
+
 
 ## -- functions ---------------------------------------------------------------
 
@@ -32,10 +33,9 @@ err() {
     exit 1
 }
 
-# display separator
-sep() {
-    echo "-----------------------------------------------"
-}
+# display separators
+sep()    { echo "-----------------------------------------------" ;}
+dblsep() { echo "===============================================" ;}
 
 # display key-value
 out_kv() {
@@ -49,6 +49,18 @@ htod() {
     local d=$1
     local h=$(sed 's/0x0*//' <<< $d)
     echo $((16#$h))
+}
+
+# hex to bin
+# $1: hex value to convert
+# $2: num bits to output
+htob() {
+    local v=$1
+    local b=${2:-16}
+    for ((i=b-1; i>=0; i--)); do
+        printf "%d" $(( (v>>i)%2 ));
+    done
+    echo
 }
 
 # dec to hex
@@ -81,6 +93,14 @@ get_reg() {
     local idx=${2:+--indexes "$2"}
     mlxreg -d $dev --reg_name $reg --get $idx
 }
+
+# show register definition
+#  $1: reg name
+show_reg() {
+    local reg=$1
+    mlxreg -d $dev --show_reg $reg
+}
+
 
 
 ## -- arg handling ------------------------------------------------------------
@@ -156,6 +176,7 @@ req="4.14.0"
 [[ -r /dev/mst/$dev ]] || err "$dev not found in /dev/mst, is mst started?"
 
 
+
 ## -- data --------------------------------------------------------------------
 
 # PRM registers
@@ -169,10 +190,11 @@ req="4.14.0"
 # MSPS  -  ... power supplies
 # MTMP  -  Management Temperature
 # MTCAP -  Management Temperature Capabilities
+# MFCR  -  Management Fan Control Register
 
 declare -A reg
 declare -A rid
-reg_names="MGIR MGPIR MSGI MSPS SPZR MTMP MTCAP"
+reg_names="MGIR MGPIR MSGI MSPS SPZR MTMP MTCAP MFCR"
 rid[SPZR]="swid=0x0"
 rid[MTMP]="sensor_index=0x0"
 # gather register values in parallel
@@ -181,7 +203,7 @@ _regs=$(for r in $reg_names; do
         done)
 while read -r r v; do
     o=${v//@/$'\n'}
-    [[ "$o" =~ ^-E- ]] && err "${o/-E-/}"
+    [[ "$o" =~ ^-E- ]] && [[ $r != MGPIR ]] && err "${o/-E-/}"
     reg[$r]=$o
 done <<< "$_regs"
 
@@ -261,20 +283,22 @@ mt=$((_mt/8))
 }
 
 
-# fans
-# gather fan speeds in parallel
-_fsps=$(for t in $(seq 1 $num_fans); do
-            echo $t $(get_reg MFSM "tacho=0x$(dtoh $t)" |
+# fan speeds
+# get active tachos
+at_bmsz=$(htod $(awk '/tacho_active/ {printf $(NF-2)}' < <(show_reg MFCR)))
+at_bmsk=$(htob $(awk '/tacho_active/ {printf $NF}' <<< "${reg[MFCR]}") $at_bmsz)
+# gather fan speeds in parallel, for active tachos
+for (( i=${#at_bmsk}-1; i>0; i-- )); do
+    [[ ${at_bmsk:$((i-1)):1} == 1 ]] && at_idxs+="$((at_bmsz-i)) "
+done
+_fsps=$(for t in ${at_idxs:-}; do
+            echo $t $(get_reg MFSM "tacho=0x$(dtoh $t)" |&
                 awk '/^rpm/ {print $NF}') &
          done)
 while read -r t s; do
-    fs[$t]=$(htod $s)
+    fs[$t]=$(htod ${s:-0})
 done <<< "$_fsps"
-
-
-
-# alerts over/under limit #FORE
-# speeds #MFSM
+# alerts over/under limit #FORE ?
 
 # ? interfaces (tx/rx) #PPCNT
 
@@ -282,15 +306,16 @@ done <<< "$_fsps"
 # idx local_port=0x[portnum],pnat=0x0,page_select=0x3,group_opcode=0x0 for PHYs
 
 
+
 ## -- display -----------------------------------------------------------------
-sep
-out_kv "node description" "$nd"
-sep
+dblsep
+echo "$nd"
+dblsep
 out_kv "P/N" "$pn"
 out_kv "S/N" "$sn"
 out_kv "codename (rev)" "$cn ($rv)"
-out_kv "ports" "$nm"
 out_kv "PSID" "$psid"
+out_kv "ports" "$nm"
 out_kv "GUID" "$guid"
 out_kv "fw version" "$(printf "%d.%04d.%04d" $maj $min $sub)"
 sep
@@ -298,7 +323,6 @@ out_kv "uptime [h:m:s]" "$(sec_to_hms $s_uptime)"
 sep
 [[ "${ps[${psu_idx:0:1}.pn]}" != "" ]] && {
     for i in $psu_idx; do
-        [[ "$i" != "${psu_idx:0:1}" ]] && echo
         out_kv "PSU$i P/N" "${ps[$i.pn]}"
         out_kv "PSU$i S/N" "${ps[$i.sn]}"
         #out_kv "PSU$i AC power" "${ps[$i.ac]}"
@@ -315,7 +339,9 @@ out_kv "ASIC max temp" "${mt}"
     done
 }
 sep
-for t in $(seq 1 $num_fans); do
-    out_kv "FAN#$(printf "%02d" $t) speed" "${fs[$t]}"
+for t in ${at_idxs:-}; do
+    s=${fs[$t]}
+    out_kv "FAN #$(printf "%02d" $t) speed" $((s>10000?s/2:s))
 done
-sep
+[[ ${at_idxs:-} != "" ]] && sep
+
