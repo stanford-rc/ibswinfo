@@ -29,7 +29,7 @@ MFT_URL="https://www.mellanox.com/products/adapter-software/firmware-tools"
 
 # display error and quit
 err() {
-    [[ "$@" != "" ]] && echo "error: $@" >&2
+    [[ "$*" != "" ]] && echo "error: $*" >&2
     exit 1
 }
 
@@ -47,7 +47,8 @@ out_kv() {
 # hex to dec
 htod() {
     local d=$1
-    local h=$(sed 's/0x0*//' <<< $d)
+    local h
+    h=$(sed 's/0x0*//' <<< "$d")
     echo $((16#$h))
 }
 
@@ -66,7 +67,7 @@ htob() {
 # dec to hex
 dtoh() {
     local h=$1
-    printf "%x\n" $h
+    printf "%x\n" "$h"
 }
 
 # hex to string
@@ -74,15 +75,16 @@ dtoh() {
 #  0x73656372657420
 #  0x6d657373616765
 htos() {
-    local h=$@
-    local s=$(sed 's/0x\|[[:space:]]//g; s/\(..\)/\\x\1/g' <<< "$h")
-    printf "%b\n" $s | tr -d \\0
+    local h=$*
+    local s
+    s=$(sed 's/0x\|[[:space:]]//g; s/\(..\)/\\x\1/g' <<< "$h")
+    printf "%b\n" "$s" | tr -d \\0
 }
 
 # seconds to h:m:s
 sec_to_hms() {
     local s=$1
-    printf '%02d:%02d:%02d\n' $(($s/3600)) $(($s%3600/60)) $(($s%60))
+    printf '%02d:%02d:%02d\n' $((s/3600)) $((s%3600/60)) $((s%60))
 }
 
 # get register
@@ -91,14 +93,14 @@ sec_to_hms() {
 get_reg() {
     local reg=$1
     local idx=${2:+--indexes "$2"}
-    mlxreg -d $dev --reg_name $reg --get $idx
+    mlxreg -d "$dev" --reg_name "$reg" --get "$idx"
 }
 
 # show register definition
 #  $1: reg name
 show_reg() {
     local reg=$1
-    mlxreg -d $dev --show_reg $reg
+    mlxreg -d "$dev" --show_reg "$reg"
 }
 
 
