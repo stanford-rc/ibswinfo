@@ -69,7 +69,7 @@ dtoh() {
 }
 
 # hex to string
-# eg. input:
+# sample input:
 #  0x73656372657420
 #  0x6d657373616765
 htos() {
@@ -189,8 +189,8 @@ req="4.14.0"
 ## -- data --------------------------------------------------------------------
 
 # PRM registers
-# cf. /usr/share/mft/prm_dbs/switch/ext/register_access_table.adb and
-# https://github.com/torvalds/linux/blob/master/drivers/net/ethernet/mellanox/mlxsw/reg.h
+# cf. mft/prm_dbs/switch/ext/register_access_table.adb
+# and kernel:drivers/net/ethernet/mellanox/mlxsw/reg.h
 #
 # MGIR  -  Management General Information Register
 # MGPIR -  Management General Peripheral Information Register
@@ -202,10 +202,10 @@ req="4.14.0"
 # FORE  -  Fan Out of Range Event Register
 # SPZR  -  ...? node description
 
-# gather register values in parallel
+# gather register values
 declare -A reg
 declare -A rid
-
+# select register to read, depending on what output is required
 case $out in
     inventory)
         reg_names="MGIR MSGI SPZR MSPS"
@@ -220,19 +220,22 @@ case $out in
         reg_names="MGIR MGPIR MSGI MSPS SPZR MTMP MTCAP MFCR FORE"
         ;;
 esac
+# some registers need an index
 rid[SPZR]="swid=0x0"
 rid[MTMP]="sensor_index=0x0"
+# get registers
 _regs=$(for r in $reg_names; do
             echo "$r" "$(get_reg "$r" ${rid[$r]:-} |& paste -s -d '@')" &
         done)
+# store them
 while read -r r v; do
     o=${v//@/$'\n'}
     [[ "$o" =~ -E- ]] && [[ $r != MGPIR ]] && err "${o/-E-/}"
     reg[$r]=$o
 done <<< "$_regs"
 
-
-# inventory data
+# extract data from register values
+# inventory
 [[ ! "$out" =~ status|vitals ]] && {
     # part/serial number
     pn=$(htos "$(awk '/part_number/   {printf $NF}' <<< "${reg[MSGI]}")")
@@ -253,10 +256,9 @@ done <<< "$_regs"
     nd=$(htos $(awk '/node_description/ {print $NF}' <<< "${reg[SPZR]}"))
     guid=$(awk '/node_guid/ {gsub(/0x/,"",$NF); g=g$NF} END {print "0x"g}' \
           <<< "${reg[SPZR]}")
-
 }
 
-# status data
+# status
 [[ ! "$out" =~ inventory|vitals ]] && {
     # fan under/over limit alerts
     fu=$(htod "$(awk '/fan_under_limit/ {printf $NF}' <<< "${reg[FORE]}")")
@@ -265,10 +267,8 @@ done <<< "$_regs"
     [[ $((fo+fu)) == 0 ]] && fa="OK" || fa="ERROR"
 }
 
-
-# vitals/status data
-[[ ! $out =~ "inventory" ]] && {
-
+# vitals and status
+[[ ! $out =~ inventory ]] && {
     # number of ports
     _np=$(awk '/num_of_modules/ {printf $NF}' <<< "${reg[MGPIR]}")
     if [[ $_np =~ ^0x ]]; then
@@ -306,7 +306,7 @@ done <<< "$_regs"
                       < <(show_reg MFCR))")
     at_bmsk=$(htob "$(awk '/tacho_active/ {printf $NF}' \
                       <<< "${reg[MFCR]}")" "$at_bmsz")
-    # gather fan speeds in parallel, for active tachos
+    # gather fan speeds for active tachos
     for (( i=${#at_bmsk}-1; i>0; i-- )); do
         [[ ${at_bmsk:$((i-1)):1} == 1 ]] && at_idxs+="$((at_bmsz-i)) "
     done
@@ -319,7 +319,6 @@ done <<< "$_regs"
     done <<< "$_fsps"
 
 }
-
 
 # PSUs (inventory/status/vitals)
 #shellcheck disable=SC2001
@@ -365,9 +364,9 @@ done
 
 
 
-## -- display -----------------------------------------------------------------
+## -- output ------------------------------------------------------------------
 
-# outputs
+# targeted outputs
 case $out in
     inventory)
         out_kv "node_desription" "$nd"
@@ -421,13 +420,7 @@ case $out in
 esac
 
 
-
-
-## inventory only
-## vitals only
-## status only
-## all (default)
-
+## full (default) output
 dblsep
 echo "$nd"
 dblsep
