@@ -24,23 +24,19 @@ Mellanox Infiniband switches come in two flavors:
 allow sysadmins to get more information about their unmanaged Infiniband
 switches.
 
-It can be used to gather vitals such as fan speeds or temperatures,
+It can be used to gather hardware vitals such as fan speeds or temperatures,
 and monitor the switches more closely.
 
 
-## Dependencies
+## Installation
+
+### Dependencies
 
 * [Mellanox Firmware Tools
   (MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) >=
   4.14.0
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
 * `bash`, `coreutils`, `awk` and `sed`
-
-## Installation
-
-It's a shell script, so, it's pretty much:
-1. download
-2. run
 
 ### Preparation
 
@@ -67,7 +63,7 @@ Limited support is also available for the managed version of those switches:
 * QM8700 Quantum HDR
 
 
-## Supported information
+### Available information
 
 * Part number, serial number
 * PSID, GUID, firmware version
@@ -142,11 +138,11 @@ fan#9 (rpm)        | 5471
 
 ### Targeted outputs
 
-Only specific values can be displayed by chossing the appropriate output type: `inventory`, `status` or `vitals`
-, to quickly get serial numbers, or feed
-vitals metrics to a monitoring system. 
+Only specific values can be displayed by chossing the appropriate output type:
+`inventory`, `status` or `vitals`. This is particularly useful to quickly get
+serial numbers, or feed hardware metrics to a monitoring system.
 
-For instance, to only get a switch's vitals, including QSFP temperatures:
+For instance, to only get hardware vitals, including QSFP temperatures:
 
 ```
 # ./ibswinfo -d /dev/mst/device -o vitals -T
