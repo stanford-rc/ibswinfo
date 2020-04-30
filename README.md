@@ -1,31 +1,32 @@
 # ibswinfo
-Display information from unmanaged Mellanox Infiniband switches.
+Get information from unmanaged Mellanox Infiniband switches.
 
 
 ## Description
 
-`ibswinfo` is a simple script to get status and monitoring information 
+`ibswinfo` is a simple script to get status and monitoring information
 from unmanaged Mellanox Infiniband switches.
 
 Mellanox Infiniband switches come in two flavors:
 
 * managed switches have their own management controller, which allows
-  monitoring fan speeds and temperatures, getting serial numbers and updating
+  monitoring fan speeds and temperatures, getting serial numbers, or updating
   firmwares over a variety of protocols (SSH, SNMP, HTTPs...)
 
-* unmanaged switches are just that: unmanaged. Their firmware can be updated
-  in-band with MFT, but the only way to get their status is through their PSU
-  and fan LEDs: they're either green and that's good, or they're red and you're
-  toast. But you won't know unless you physically take a look at them.
+* unmanaged switches are just that: unmanaged.
+
+Some in-band management is possible for unmanaged switches with Mellanox
+firmware tools, but the only way to get their status is via the LEDs on their
+chassis: they're either green (that's good), or red (that's bad). But you won't
+know unless you physically take a look at them, which makes it difficult to get
+notifications and alerts when problems occur.
 
 
-`ibswinfo` leverages [Mellanox Firmware Tools
+`ibswinfo` helps solve this problem, by leveraging [Mellanox Firmware Tools
 (MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) to
 allow sysadmins to get more information about their unmanaged Infiniband
-switches.
-
-It can be used to gather hardware vitals such as fan speeds or temperatures,
-and monitor the switches more closely.
+switches. It can be used to gather hardware vitals such as fan speeds or
+temperatures, and monitor the switches more closely.
 
 
 ## Installation
@@ -40,8 +41,9 @@ and monitor the switches more closely.
 
 ### Preparation
 
-`ibswinfo` operates on virtual devices created by MST, the Mellanox Software Tools service.
-You can start the `mst` service and populate entries in `/dev/mst` with:
+`ibswinfo` operates on virtual devices created by MST, the Mellanox Software
+Tools service.  Once MFT has been installed, you can start the `mst` service
+and populate entries in `/dev/mst` with:
 
 ```
 # mst start
@@ -55,12 +57,16 @@ look like `/dev/mst/SW_*`).
 ## Supported hardware
 
 `ibswinfo` has been tested with the following unmanaged Infiniband switches:
-* SB7890 Switch-IB2 EDR
-* QM8790 Quantum HDR
+* SB7890 Switch-IB2 (EDR)
+* QM8790 Quantum (HDR)
 
 Limited support is also available for the managed version of those switches:
-* SB7800 Switch-IB2 EDR
-* QM8700 Quantum HDR
+* SB7800 Switch-IB2 (EDR)
+* QM8700 Quantum (HDR)
+
+_If you find other working models, please feel free to open an
+[issue](https://github.com/stanford-rc/ibswinfo/issues/new) to let us know, and
+we'll be happy to complete the list._
 
 
 ### Available information
@@ -68,7 +74,7 @@ Limited support is also available for the managed version of those switches:
 * Part number, serial number
 * PSID, GUID, firmware version
 * Uptime
-* Power supply information (status, consumption, inventory)
+* Power supply information (status, consumption, part and serial numbers)
 * Temperatures (including QSFP modules temp.)
 * Fan speeds and status
 
@@ -83,7 +89,7 @@ Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>]
                             Run "mst status" to get the devices list
     -o <output_category>    Only display inventory|vitals|status information
     -T                      get QSFP modules temperature
-    
+
 ```
 
 ### Default output
@@ -138,9 +144,12 @@ fan#9 (rpm)        | 5471
 
 ### Targeted outputs
 
-Only specific values can be displayed by chossing the appropriate output type:
-`inventory`, `status` or `vitals`. This is particularly useful to quickly get
-serial numbers, or feed hardware metrics to a monitoring system.
+Specific information can be targeted by choosing the appropriate output type:
+`inventory`, `status` or `vitals`.
+
+This can be particularly useful to quickly get a switch's serial number, check
+its status to create alerts, or feed hardware metrics to a monitoring system.
+Targeted outputs are designed to be parsed for input to other tools.
 
 For instance, to only get hardware vitals, including QSFP temperatures:
 
