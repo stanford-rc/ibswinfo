@@ -1,16 +1,18 @@
 # ibswinfo
-Get information from unmanaged Infiniband switches
+Display information from unmanaged Mellanox Infiniband switches.
 
 
 ## Description
 
-`ibswinfo` is a simple script to get information from unmanaged Infiniband
-switches.
+`ibswinfo` is a simple script to get status and monitoring information 
+from unmanaged Mellanox Infiniband switches.
 
 Mellanox Infiniband switches come in two flavors:
+
 * managed switches have their own management controller, which allows
   monitoring fan speeds and temperatures, getting serial numbers and updating
   firmwares over a variety of protocols (SSH, SNMP, HTTPs...)
+
 * unmanaged switches are just that: unmanaged. Their firmware can be updated
   in-band with MFT, but the only way to get their status is through their PSU
   and fan LEDs: they're either green and that's good, or they're red and you're
@@ -57,35 +59,38 @@ look like `/dev/mst/SW_*`).
 ## Supported hardware
 
 `ibswinfo` has been tested with the following unmanaged Infiniband switches:
-* SB7890 Switch-IB2 EDR switches
-* QM8790 Quantum HDR switches
+* SB7890 Switch-IB2 EDR
+* QM8790 Quantum HDR
 
 Limited support is also available for the managed version of those switches:
-* SB7800 Switch-IB2 EDR switches
-* QM8700 Quantum HDR switches
+* SB7800 Switch-IB2 EDR
+* QM8700 Quantum HDR
 
 
 ## Supported information
 
-* Part number
-* Serial number
-* PSID
-* GUID
-* Firmware version
+* Part number, serial number
+* PSID, GUID, firmware version
 * Uptime
 * Power supply information (status, consumption, inventory)
 * Temperatures (including QSFP modules temp.)
 * Fan speeds and status
 
 
-
-
 ## Usage
 
 ```
-# ./ibswinfo -d /dev/mst/<device>
+#  ./ibswinfo/ibswinfo.sh -h
+Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>]
 
+    -d <device>             MST device name.
+                            Run "mst status" to get the devices list
+    -o <output_category>    Only display inventory|vitals|status information
+    -T                      get QSFP modules temperature
+    
 ```
+
+### Default output
 
 By default, `ibswinfo` presents all the available information for a switch in a
 table-like output:
@@ -135,7 +140,10 @@ fan#9 (rpm)        | 5471
 -------------------------------------------------
 ```
 
-More specific output can be displayed, to quickly get serial numbers, or feed
+### Targeted outputs
+
+Only specific values can be displayed by chossing the appropriate output type: `inventory`, `status` or `vitals`
+, to quickly get serial numbers, or feed
 vitals metrics to a monitoring system. 
 
 For instance, to only get a switch's vitals, including QSFP temperatures:
