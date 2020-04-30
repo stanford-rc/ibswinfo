@@ -274,7 +274,7 @@ done <<< "$_regs"
     if [[ $_np =~ ^0x ]]; then
         np=$(htod "$_np")
     else # try to get that from the SM
-        _s=$(smpquery NI -G "$guid" | awk -F.  '/NumPorts/ {print $NF}')
+        _s=$(smpquery NI -G "${guid:-}" | awk -F.  '/NumPorts/ {print $NF}')
         np=$((_s-1))
     fi
 
