@@ -65,8 +65,8 @@ Limited support is also available for the managed version of those switches:
 * QM8700 Quantum (HDR)
 
 _If you find other working models, please feel free to open an
-[issue](https://github.com/stanford-rc/ibswinfo/issues/new) to let us know, and
-we'll be happy to complete the list._
+[issue](https://github.com/stanford-rc/ibswinfo/issues/new) and
+we'll complete the list._
 
 
 ### Available information
