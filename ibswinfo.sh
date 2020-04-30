@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# vim: set tabstop=4 expandtab shiftwidth=4 bg=dark:
+# vim: set tabstop=4 expandtab shiftwidth=4:
 # vim: set textwidth=80:
 #
 #==============================================================================
@@ -7,17 +7,16 @@
 #
 # Gather information from unmanaged Infiniband switches
 #
-# Depends on: Mellanox Firmare Tools (MFT)
-#             https://www.mellanox.com/products/adapter-software/firmware-tools
+# Requires  : Mellanox Firmare Tools (MFT)
 #
 # Author    : Kilian Cavalotti <kilian@stanford.edu>
 # Created   : 2020/04/20
+# License   : GNU GPL v3
 #
 #==============================================================================
 
 set -e      # stop on error
 set -u      # stop on uninitialized variable
-
 
 ## -- constants ---------------------------------------------------------------
 
