@@ -145,7 +145,7 @@ serial numbers, or feed hardware metrics to a monitoring system.
 For instance, to only get hardware vitals, including QSFP temperatures:
 
 ```
-# ./ibswinfo -d /dev/mst/device -o vitals -T
+# ./ibswinfo -d /dev/mst/<device> -o vitals -T
 uptime (sec)       : 16982312
 psu0.power (W)     : 92
 psu1.power (W)     : 102
@@ -197,3 +197,15 @@ fan#7.speed (rpm)  : 6268
 fan#8.speed (rpm)  : 5421
 ```
 
+Or, to only get fans and power supplies' status:
+
+```
+# ./ibswinfo -d /dev/mst/<device> -o status
+psu0.status        : OK
+psu0.dc            : OK
+psu0.fan           : OK
+psu1.status        : OK
+psu1.dc            : OK
+psu1.fan           : OK
+fans               : OK
+```
