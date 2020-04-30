@@ -335,6 +335,7 @@ for i in $psu_idxs; do
     _fs=${_bm[1]: -1:1} # PSU fan status
     [[ "$_pr" == 5 ]] && ps[$i.pr]="OK" || ps[$i.pr]="ERROR"
     [[ "$_fs" == 2 ]] && ps[$i.fs]="OK" || ps[$i.fs]="ERROR"
+    [[ "$_fs" == 3 ]] && ps[$i.fs]="" # probably a managed switch
     [[ "$_dc" == 1 ]] && ps[$i.dc]="OK" || ps[$i.dc]="ERROR"
 
     # serial number
