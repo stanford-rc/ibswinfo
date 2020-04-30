@@ -94,6 +94,7 @@ sec_to_dhms() {
 get_reg() {
     local reg=$1
     local idx=${2:+--indexes "$2"}
+    # shellcheck disable=SC2086
     mlxreg_ext -d "$dev" --reg_name "$reg" --get $idx 2>&1
 }
 
@@ -125,7 +126,6 @@ outputs="inventory|vitals|status"
 out=""
 dev=""
 opt_T=0
-declare -A opts
 optspec="hd:To:"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
@@ -156,7 +156,7 @@ done
 ## -- checks ------------------------------------------------------------------
 
 # id
-[ $(id -u) = 0 ] || err "must run as root, aborting."
+[[ "$(id -u)" == 0 ]] || err "must run as root, aborting."
 
 # tools and dependencies
 declare -A tools
@@ -167,7 +167,7 @@ tools[paste]="coreutils"
 tools[mst]="MFT ($MFT_URL)"
 tools[mlxreg]="MFT ($MFT_URL)"
 tools[smpquery]="infiniband-diags"
-for t in ${!tools[@]}; do
+for t in "${!tools[@]}"; do
     type $t &>/dev/null || \
         err "$t not found${tools[$t]:+, please install ${tools[$t]}}"
 done
@@ -223,7 +223,7 @@ esac
 rid[SPZR]="swid=0x0"
 rid[MTMP]="sensor_index=0x0"
 _regs=$(for r in $reg_names; do
-            echo $r $(get_reg $r ${rid[$r]:-} |& paste -s -d '@') &
+            echo "$r" "$(get_reg "$r" ${rid[$r]:-} |& paste -s -d '@')" &
         done)
 while read -r r v; do
     o=${v//@/$'\n'}
@@ -235,20 +235,21 @@ done <<< "$_regs"
 # inventory data
 [[ ! "$out" =~ status|vitals ]] && {
     # part/serial number
-    pn=$(htos $(awk '/part_number/   {printf $NF}' <<< "${reg[MSGI]}"))
-    sn=$(htos $(awk '/serial_number/ {printf $NF}' <<< "${reg[MSGI]}"))
-    cn=$(htos $(awk '/product_name/  {printf $NF}' <<< "${reg[MSGI]}"))
-    rv=$(htos $(awk '/revision/      {printf $NF}' <<< "${reg[MSGI]}"))
+    pn=$(htos "$(awk '/part_number/   {printf $NF}' <<< "${reg[MSGI]}")")
+    sn=$(htos "$(awk '/serial_number/ {printf $NF}' <<< "${reg[MSGI]}")")
+    cn=$(htos "$(awk '/product_name/  {printf $NF}' <<< "${reg[MSGI]}")")
+    rv=$(htos "$(awk '/revision/      {printf $NF}' <<< "${reg[MSGI]}")")
 
     # PSID
-    psid=$(htos $(awk '/^psid/       {printf $NF}' <<< "${reg[MGIR]}"))
+    psid=$(htos "$(awk '/^psid/       {printf $NF}' <<< "${reg[MGIR]}")")
 
     # FW version
-    maj=$(htod $(awk '/extended_major/ {printf $NF}' <<< "${reg[MGIR]}"))
-    min=$(htod $(awk '/extended_minor/ {printf $NF}' <<< "${reg[MGIR]}"))
-    sub=$(htod $(awk '/extended_sub_minor/ {printf $NF}' <<< "${reg[MGIR]}"))
+    maj=$(htod "$(awk '/extended_major/ {printf $NF}' <<< "${reg[MGIR]}")")
+    min=$(htod "$(awk '/extended_minor/ {printf $NF}' <<< "${reg[MGIR]}")")
+    sub=$(htod "$(awk '/extended_sub_minor/ {printf $NF}' <<< "${reg[MGIR]}")")
 
     # node description
+    #shellcheck disable=SC2046
     nd=$(htos $(awk '/node_description/ {print $NF}' <<< "${reg[SPZR]}"))
     guid=$(awk '/node_guid/ {gsub(/0x/,"",$NF); g=g$NF} END {print "0x"g}' \
           <<< "${reg[SPZR]}")
@@ -258,8 +259,8 @@ done <<< "$_regs"
 # status data
 [[ ! "$out" =~ inventory|vitals ]] && {
     # fan under/over limit alerts
-    fu=$(htod $(awk '/fan_under_limit/ {printf $NF}' <<< "${reg[FORE]}"))
-    fo=$(htod $(awk '/fan_over_limit/ {printf $NF}'  <<< "${reg[FORE]}"))
+    fu=$(htod "$(awk '/fan_under_limit/ {printf $NF}' <<< "${reg[FORE]}")")
+    fo=$(htod "$(awk '/fan_over_limit/ {printf $NF}'  <<< "${reg[FORE]}")")
     # TODO break down FORE bitmasks to get alerted fan id
     [[ $((fo+fu)) == 0 ]] && fa="OK" || fa="ERROR"
 }
@@ -269,62 +270,65 @@ done <<< "$_regs"
 [[ ! $out =~ "inventory" ]] && {
 
     # number of ports
-    _nm=$(awk '/num_of_modules/ {printf $NF}' <<< "${reg[MGPIR]}")
-    if [[ $_nm =~ ^0x ]]; then
-        nm=$(htod $_nm)
+    _np=$(awk '/num_of_modules/ {printf $NF}' <<< "${reg[MGPIR]}")
+    if [[ $_np =~ ^0x ]]; then
+        np=$(htod "$_np")
     else # try to get that from the SM
-        _s=$(smpquery NI -G $guid | awk -F.  '/NumPorts/ {print $NF}')
-        nm=$((_s-1))
+        _s=$(smpquery NI -G "$guid" | awk -F.  '/NumPorts/ {print $NF}')
+        np=$((_s-1))
     fi
 
     # uptime
     h_uptime=$(awk '/uptime/ {print $NF}' <<< "${reg[MGIR]}")
-    s_uptime=$(htod $h_uptime)
+    s_uptime=$(htod "$h_uptime")
 
     # temperatures
-    _tp=$(htod $(awk '/^temperature /    {printf $NF}' <<< "${reg[MTMP]}"))
-    _mt=$(htod $(awk '/max_temperature / {printf $NF}' <<< "${reg[MTMP]}"))
+    _tp=$(htod "$(awk '/^temperature /    {printf $NF}' <<< "${reg[MTMP]}")")
+    _mt=$(htod "$(awk '/max_temperature / {printf $NF}' <<< "${reg[MTMP]}")")
     tp=$((_tp/8))
     mt=$((_mt/8))
 
     # optionally get QSFP temperatures
     [[ "$opt_T" == "1" ]] && {
-        # gather module temperatures in parallel
-        _mtps=$(for m in $(seq 1 $nm); do
-                    echo $m $(get_reg MTMP "sensor_index=0x$(dtoh $((m+63)))" |\
-                              awk '/^temperature / {print $NF}') &
+        _qtps=$(for q in $(seq 1 $np); do
+                    i=$(dtoh $((q+63)))
+                    echo "$q" "$(get_reg MTMP "sensor_index=0x$i" |\
+                                 awk '/^temperature / {print $NF}')" &
                 done)
-        while read -r m t; do
-            mt[$m]=$(($(htod $t)/8))
-        done <<< "$_mtps"
+        while read -r q t; do
+            qt[$q]=$(($(htod "$t")/8))
+        done <<< "$_qtps"
     }
 
     # fan speeds
     # get active tachos
-    at_bmsz=$(htod $(awk '/tacho_active/ {printf $(NF-2)}' < <(show_reg MFCR)))
-    at_bmsk=$(htob $(awk '/tacho_active/ {printf $NF}' <<< "${reg[MFCR]}") $at_bmsz)
+    at_bmsz=$(htod "$(awk '/tacho_active/ {printf $(NF-2)}' \
+                      < <(show_reg MFCR))")
+    at_bmsk=$(htob "$(awk '/tacho_active/ {printf $NF}' \
+                      <<< "${reg[MFCR]}")" "$at_bmsz")
     # gather fan speeds in parallel, for active tachos
     for (( i=${#at_bmsk}-1; i>0; i-- )); do
         [[ ${at_bmsk:$((i-1)):1} == 1 ]] && at_idxs+="$((at_bmsz-i)) "
     done
     _fsps=$(for t in ${at_idxs:-}; do
-                echo $t $(get_reg MFSM "tacho=0x$(dtoh $t)" |&
-                    awk '/^rpm/ {print $NF}') &
+                echo "$t" "$(get_reg MFSM "tacho=0x$(dtoh "$t")" |&
+                             awk '/^rpm/ {print $NF}')" &
              done)
     while read -r t s; do
-        fs[$t]=$(htod ${s:-0})
+        fs[$t]=$(htod "${s:-0}")
     done <<< "$_fsps"
 
 }
 
 
 # PSUs (inventory/status/vitals)
+#shellcheck disable=SC2001
 psu_idxs=$(sed 's/.*psu\([0-9]\).*/\1/;t;d' <<< "${reg[MSPS]}" | sort -u)
 declare -A ps
 for i in $psu_idxs; do
     # get PSU status bitmasks, a lot of guessing is taking place here
     for j in 0 1; do
-        _bm[$j]=$(awk -v i=$i -v j=$j '$0 ~ "psu"i"\\["j"\\]" {
+        _bm[$j]=$(awk -v i="$i" -v j="$j" '$0 ~ "psu"i"\\["j"\\]" {
                     gsub(/0x/,""); print $NF}' <<< "${reg[MSPS]}")
     done
     _pr=${_bm[0]:0:1}   # PSU present
@@ -335,14 +339,15 @@ for i in $psu_idxs; do
     [[ "$_dc" == 1 ]] && ps[$i.dc]="OK" || ps[$i.dc]="ERROR"
 
     # serial number
-    ps[$i.sn]=$(htos $(awk -v i=$i '$0 ~ "psu"i && /psu.\[[4-6]\]/ {
-                                    printf $NF}' <<< "${reg[MSPS]}"))
+    ps[$i.sn]=$(htos "$(awk -v i="$i" '$0 ~ "psu"i && /psu.\[[4-6]\]/ {
+                                       printf $NF}' <<< "${reg[MSPS]}")")
     # part number
-    ps[$i.pn]=$(htos $(awk -v i=$i '$0 ~ "psu"i && /psu.\[1[2-5]\]/ {
-                                    printf $NF}' <<< "${reg[MSPS]}"))
+    ps[$i.pn]=$(htos "$(awk -v i="$i" '$0 ~ "psu"i && /psu.\[1[2-5]\]/ {
+                                       printf $NF}' <<< "${reg[MSPS]}")")
     # power consumption, some guessing too
-    ps[$i.wt]=$(htod $(awk -v i=$i '$0 ~ "psu"i && /psu.\[2\]/ {gsub(/0x8/,"")
-                                    print $NF}' <<< "${reg[MSPS]}"))
+    ps[$i.wt]=$(htod "$(awk -v i="$i" '$0 ~ "psu"i && /psu.\[2\]/ {
+                                       gsub(/0x8/,"")
+                                       printf $NF}' <<< "${reg[MSPS]}")")
     [[ ${ps[$i.wt]} == 0 ]] && ps[$i.wt]=""
 done
 
@@ -370,7 +375,7 @@ case $out in
         out_kv "serial" "$sn"
         out_kv "product_name" "$cn"
         out_kv "revision" "$rv"
-        out_kv "fw_version" "$(printf "%d.%04d.%04d" $maj $min $sub)"
+        out_kv "fw_version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
         [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
             for i in $psu_idxs; do
                 out_kv "psu$i.part_number"   "${ps[$i.pn]}"
@@ -403,8 +408,8 @@ case $out in
         out_kv "cur.temp (C)" "${tp}"
         out_kv "max.temp (C)" "${mt}"
         [[ "$opt_T" == "1" ]] && {
-            for m in $(seq 1 $nm); do
-                out_kv "QSFP#$(printf "%02d" $m).temp (C)" "${mt[$m]}"
+            for q in $(seq 1 $np); do
+                out_kv "QSFP#$(printf "%02d" "$q").temp (C)" "${qt[$q]}"
             done
         }
         for t in ${at_idxs:-}; do
@@ -430,12 +435,12 @@ out_kv "part number" "$pn"
 out_kv "serial number" "$sn"
 out_kv "product name" "$cn"
 out_kv "revision" "$rv"
-out_kv "ports" "$nm"
+out_kv "ports" "$np"
 out_kv "PSID" "$psid"
 out_kv "GUID" "$guid"
-out_kv "firmware version" "$(printf "%d.%04d.%04d" $maj $min $sub)"
+out_kv "firmware version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
 sep
-out_kv "uptime (d-h:m:s)" "$(sec_to_dhms $s_uptime)"
+out_kv "uptime (d-h:m:s)" "$(sec_to_dhms "$s_uptime")"
 sep
 [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
     for i in $psu_idxs; do
@@ -451,8 +456,8 @@ sep
 out_kv "temperature (C)" "${tp}"
 out_kv "max temp (C)" "${mt}"
 [[ "$opt_T" == "1" ]] && {
-    for m in $(seq 1 $nm); do
-        out_kv "QSFP#$(printf "%02d" $m) (C) " "${mt[$m]}"
+    for q in $(seq 1 $np); do
+        out_kv "QSFP#$(printf "%02d" "$q") (C) " "${qt[$q]}"
     done
 }
 sep
