@@ -41,17 +41,24 @@ temperatures, and monitor the switches more closely.
 
 ### Preparation
 
-`ibswinfo` operates on virtual devices created by MST, the Mellanox Software
-Tools service.  Once MFT has been installed, you can start the `mst` service
-and populate entries in `/dev/mst` with:
+`ibswinfo` can address switches by using the virtual devices created by MST,
+the Mellanox Software Tools service, or by LID.
 
-```
-# mst start
-# mst ib add
-```
+* to use the MST virtual devices, you can start the `mst` service and populate
+  entries in `/dev/mst` with:
 
-Check that `/dev/mst` contains entries for your unmanaged switches (they should
-look like `/dev/mst/SW_*`).
+    ```
+    # mst start
+    # mst ib add
+    ```
+
+    Check that `/dev/mst` contains entries for your unmanaged switches (they
+    should look like `/dev/mst/SW_*`), and you can run `ibswinfo` like this:
+    `./ibswinfo.sh -d /dev/mst/SW`
+
+* to address switches by LID, starting the `mst` service is not required. You
+  can get currently assigned LIDs with `ibswitches`, and run `ibswinfo`
+  directly like this: `./ibswinfo.sh -d lid-16`
 
 
 ## Supported hardware
@@ -82,11 +89,10 @@ we'll complete the list._
 ## Usage
 
 ```
-#  ./ibswinfo/ibswinfo.sh -h
 Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>]
 
-    -d <device>             MST device name.
-                            Run "mst status" to get the devices list
+    -d <device>             MST device path ("mst status" shows devices list)
+                            or LID (eg. "-d lid-44")
     -o <output_category>    Only display inventory|vitals|status information
     -T                      get QSFP modules temperature
 

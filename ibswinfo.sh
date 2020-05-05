@@ -112,8 +112,8 @@ usage() {
     cat << EOU
 Usage: ${0##*/} -d <device> [-T] [-o <$outputs>]
 
-    -d <device>             MST device name.
-                            Run "mst status" to get the devices list
+    -d <device>             MST device path ("mst status" shows devices list)
+                            or LID (eg. "-d lid-44")
     -o <output_category>    Only display $outputs information
     -T                      get QSFP modules temperature
 
@@ -180,10 +180,11 @@ req="4.14.0"
 
 # device
 [[ $dev == "" ]] && err "missing device argument"
-[[ ${dev:0:8} == '/dev/mst' ]] && dev=${dev/\/dev\/mst\//}
-[[ ${dev:0:3} == "SW_" ]] || err "$dev doesn't look like a switch device name"
-[[ -r /dev/mst/$dev ]] || err "$dev not found in /dev/mst, is mst started?"
-
+[[ ${dev:0:4} != "lid-" ]] && {
+    [[ ${dev:0:8} == '/dev/mst' ]] && dev=${dev/\/dev\/mst\//}
+    [[ ${dev:0:3} == "SW_" ]] || err "$dev doesn't look like a switch device name"
+    [[ -r /dev/mst/$dev ]] || err "$dev not found in /dev/mst, is mst started?"
+}
 
 
 ## -- data --------------------------------------------------------------------
