@@ -105,6 +105,17 @@ show_reg() {
     mlxreg_ext -d "$dev" --show_reg "$reg" 2>&1
 }
 
+# decode multifield values from register
+#  $1: field name (regex supported)
+#  $2: reg name
+mstr_dec() {
+    local f=$1
+    local r=$2
+    # sort fields, and convert them, in one fell swoop
+    htos "$(awk -v f="$f" '$0 ~ f {gsub(/\[|\]/," "); print}' \
+            <<< "${reg[$r]}" | sort -k2n | awk '{printf $NF}')"
+}
+
 
 ## -- arg handling ------------------------------------------------------------
 
@@ -239,13 +250,13 @@ done <<< "$_regs"
 # inventory
 [[ ! "$out" =~ status|vitals ]] && {
     # part/serial number
-    pn=$(htos "$(awk '/part_number/   {printf $NF}' <<< "${reg[MSGI]}")")
-    sn=$(htos "$(awk '/serial_number/ {printf $NF}' <<< "${reg[MSGI]}")")
-    cn=$(htos "$(awk '/product_name/  {printf $NF}' <<< "${reg[MSGI]}")")
-    rv=$(htos "$(awk '/revision/      {printf $NF}' <<< "${reg[MSGI]}")")
+    pn=$(mstr_dec "part_number"   MSGI)
+    sn=$(mstr_dec "serial_number" MSGI)
+    cn=$(mstr_dec "roduct_name"   MSGI)
+    rv=$(htos "$(awk '/revision/  {printf $NF}' <<< "${reg[MSGI]}")")
 
     # PSID
-    psid=$(htos "$(awk '/^psid/       {printf $NF}' <<< "${reg[MGIR]}")")
+    psid=$(mstr_dec '^psid' MGIR)
 
     # FW version
     maj=$(htod "$(awk '/extended_major/ {printf $NF}' <<< "${reg[MGIR]}")")
@@ -254,7 +265,7 @@ done <<< "$_regs"
 
     # node description
     #shellcheck disable=SC2046
-    nd=$(htos $(awk '/node_description/ {print $NF}' <<< "${reg[SPZR]}"))
+    nd=$(mstr_dec "node_description" SPZR)
     guid=$(awk '/node_guid/ {gsub(/0x/,"",$NF); g=g$NF} END {print "0x"g}' \
           <<< "${reg[SPZR]}")
 }
