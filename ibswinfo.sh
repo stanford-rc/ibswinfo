@@ -276,7 +276,7 @@ done <<< "$_regs"
         np=$(htod "$_np")
     else # try to get that from the SM
         _s=$(smpquery NI -G "${guid:-}" | awk -F.  '/NumPorts/ {print $NF}')
-        np=$((_s-1))
+        np=$((_s%2==0?_s:_s-1))
     fi
 
     # uptime
