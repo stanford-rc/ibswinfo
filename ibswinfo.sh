@@ -305,7 +305,7 @@ done <<< "$_regs"
         _qtps=$(for q in $(seq 1 $np); do
                     i=$(dtoh $((q+63)))
                     echo "$q" "$(get_reg MTMP "sensor_index=0x$i" |\
-                                 awk '/^temperature / {print $NF}')" &
+                                 awk '/^temperature[^_]/ {print $NF}')" &
                 done)
         while read -r q t; do
             qt[$q]=$(($(htod "$t")/8))
