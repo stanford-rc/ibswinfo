@@ -64,9 +64,11 @@ the Mellanox Software Tools service, or by LID.
 ## Supported hardware
 
 `ibswinfo` has been tested with the following unmanaged Infiniband switches:
+* SB7790 Switch-IB (EDR) (_known limitation: QSFP module temperatures reported as 0_)
 * SB7890 Switch-IB2 (EDR)
-* SB7790 Switch-IB (EDR)
 * QM8790 Quantum (HDR)
+
+
 
 Limited support is also available for the managed version of those switches:
 * SB7800 Switch-IB2 (EDR)
