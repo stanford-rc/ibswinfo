@@ -184,10 +184,10 @@ for t in "${!tools[@]}"; do
 done
 
 # MFT version
-cur=$(mst version | awk '{gsub(/,/,""); print $3}')
-req="4.14.0"
-[[ "$(printf '%s\n' "$req" "$cur" | sort -V | head -n1)" = "$req" ]] || \
-    err "MFT version must be >= $req (current version is $cur)"
+mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}')
+mft_req="4.14.0"
+[[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" = "$mft_req" ]] ||\
+    err "MFT version must be >= $mft_req (current version is $mft_cur)"
 
 # device
 [[ $dev == "" ]] && err "missing device argument"
@@ -233,8 +233,11 @@ case $out in
         ;;
 esac
 # some registers need an index
+# and that depends on the version of MFT we're using
+[[ $mft_cur =~ 4\.15 ]] && add_idx="slot_index=0x0" || add_idx=""
 rid[SPZR]="swid=0x0"
-rid[MTMP]="sensor_index=0x0"
+rid[MTMP]="sensor_index=0x0${add_idx:+,$add_idx}"
+rid[MTCAP]="$add_idx"
 # get registers
 _regs=$(for r in $reg_names; do
             echo "$r" "$(get_reg "$r" ${rid[$r]:-} |& paste -s -d '@')" &
@@ -304,7 +307,8 @@ done <<< "$_regs"
     [[ "$opt_T" == "1" ]] && {
         _qtps=$(for q in $(seq 1 $np); do
                     i=$(dtoh $((q+63)))
-                    echo "$q" "$(get_reg MTMP "sensor_index=0x$i" |\
+                    echo "$q" "$(get_reg MTMP \
+                                    "${add_idx:+$add_idx,}sensor_index=0x$i" |\
                                  awk '/^temperature / {print $NF}')" &
                 done)
         while read -r q t; do
