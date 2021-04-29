@@ -234,7 +234,7 @@ case $out in
 esac
 # some registers need an index
 # and that depends on the version of MFT we're using
-[[ $mft_cur =~ 4\.15 ]] && add_idx="slot_index=0x0" || add_idx=""
+[[ ${mft_cur//./} -gt 415 ]] && add_idx="slot_index=0x0" || add_idx=""
 rid[SPZR]="swid=0x0"
 rid[MTMP]="sensor_index=0x0${add_idx:+,$add_idx}"
 rid[MTCAP]="$add_idx"
