@@ -37,7 +37,9 @@ temperatures, and monitor the switches more closely.
   (MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) >=
   4.14.0
 
-  **NOTE** MFT 4.16 contains a bug that prevents register information from being correctly retrieved. The issue will be fixed in MFT 4.17.2 when it's released. 
+  **NOTE** MFT 4.16 and 4.17 contain a bug that prevents register information 
+  from being correctly retrieved. The issue will be fixed in MFT 4.17.2 when 
+  it's released. 
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
 * `bash`, `coreutils`, `awk` and `sed`
 
