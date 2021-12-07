@@ -240,7 +240,7 @@ rid[MTMP]="sensor_index=0x0${add_idx:+,$add_idx}"
 rid[MTCAP]="$add_idx"
 # get registers
 _regs=$(for r in $reg_names; do
-            echo "$r" "$(get_reg "$r" ${rid[$r]:-} |& paste -s -d '@')" &
+            echo "$r" "$(get_reg "$r" "${rid[$r]:-}" |& paste -s -d '@')" &
         done)
 # store them
 while read -r r v; do
