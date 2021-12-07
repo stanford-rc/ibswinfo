@@ -35,10 +35,7 @@ temperatures, and monitor the switches more closely.
 
 * [Mellanox Firmware Tools
   (MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) >=
-  4.14.0
-
-  **NOTE** MFT 4.16 and 4.17 contain a bug that prevents register information 
-  from being correctly retrieved.
+  4.18.0
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
 * `bash`, `coreutils`, `awk` and `sed`
 

@@ -185,7 +185,7 @@ done
 
 # MFT version
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}')
-mft_req="4.14.0"
+mft_req="4.18.0"
 [[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" = "$mft_req" ]] ||\
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
 
