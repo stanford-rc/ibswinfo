@@ -319,9 +319,9 @@ done <<< "$_regs"
 
     # fan speeds
     # get active tachos
-    at_bmsz=$(htod "$(awk '/tacho_active/ {printf $(NF-2)}' \
+    at_bmsz=$(htod "$(awk '/tacho_active / {printf $(NF-2)}' \
                       < <(show_reg MFCR))")
-    at_bmsk=$(htob "$(awk '/tacho_active/ {printf $NF}' \
+    at_bmsk=$(htob "$(awk '/tacho_active / {printf $NF}' \
                       <<< "${reg[MFCR]}")" "$at_bmsz")
     # gather fan speeds for active tachos
     for (( i=${#at_bmsk}-1; i>0; i-- )); do
