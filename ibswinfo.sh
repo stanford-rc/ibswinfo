@@ -184,7 +184,7 @@ for t in "${!tools[@]}"; do
 done
 
 # MFT version
-mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}')
+mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"
 [[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" = "$mft_req" ]] ||\
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
@@ -234,7 +234,7 @@ case $out in
 esac
 # some registers need an index
 # and that depends on the version of MFT we're using
-[[ ${mft_cur//./} -gt 415 ]] && add_idx="slot_index=0x0" || add_idx=""
+[[ ${mft_cur//./} -gt 4150 ]] && add_idx="slot_index=0x0" || add_idx=""
 rid[SPZR]="swid=0x0"
 rid[MTMP]="sensor_index=0x0${add_idx:+,$add_idx}"
 rid[MTCAP]="$add_idx"
