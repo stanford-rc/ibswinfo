@@ -153,7 +153,7 @@ while getopts "$optspec" optchar; do
         o)
             out=${OPTARG}
             [[ ! "$out" =~ ^($outputs)$ ]] && {
-                usage >&2
+                err "unknown output requested, not in $outputs"
                 exit 2
             }
             ;;
