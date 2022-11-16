@@ -69,9 +69,11 @@ dtoh() {
 }
 
 # hex to string
-# sample input:
-#  0x73656372657420
-#  0x6d657373616765
+#  sample input:
+#    0x73656372657420
+#    0x6d657373616765
+#  sample output:
+#    secret message
 htos() {
     local h=$*
     local s
@@ -186,7 +188,8 @@ done
 # MFT version
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"
-[[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" = "$mft_req" ]] ||\
+[[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" \
+    = "$mft_req" ]] ||\
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
 
 # device
