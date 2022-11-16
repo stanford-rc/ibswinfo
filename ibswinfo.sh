@@ -7,7 +7,7 @@
 #
 # Gather information from unmanaged Infiniband switches
 #
-# Requires  : Mellanox Firmare Tools (MFT)
+# Requires  : NVIDIA Firmare Tools (MFT)
 #
 # Author    : Kilian Cavalotti <kilian@stanford.edu>
 # Created   : 2020/04/20
@@ -21,6 +21,7 @@ set -u      # stop on uninitialized variable
 ## -- constants ---------------------------------------------------------------
 
 MFT_URL="https://www.mellanox.com/products/adapter-software/firmware-tools"
+MAX_ND_LEN=64
 
 
 ## -- functions ---------------------------------------------------------------
@@ -81,6 +82,32 @@ htos() {
     printf "%b\n" "$s" | tr -d \\0
 }
 
+# string to hex array (split and padded)
+#  sample input:
+#    secret message
+#  sample output:
+#    0x73656372
+#    0x6574206d
+#    0x65737361
+#    0x67650000
+stoh() {
+    local str=$*
+    local i chr hex
+    local cks=8 # chunk size for splitting
+    # convert
+    for (( i=0; i<${#str}; i++ )); do
+        chr="${str:$i:1}"
+        hex+=$(printf "%x" "'${chr}")
+    done
+    # pad
+    [[ $((${#hex}%cks)) != 0 ]] && \
+        hex+=$(printf "%-$((cks-${#hex}%cks))s" "" | tr ' ' '0')
+    # split
+    for (( i=0; i<${#hex}; i+=cks )); do
+        echo "0x${hex:$i:$cks}"
+    done
+}
+
 # seconds to d-h:m:s
 sec_to_dhms() {
     local s=$1
@@ -123,12 +150,17 @@ mstr_dec() {
 
 usage() {
     cat << EOU
-Usage: ${0##*/} -d <device> [-T] [-o <$outputs>]
+Usage: ${0##*/} -d <device> [-T] [-o <$outputs>] [-S <description>]
 
+  global options:
     -d <device>             MST device path ("mst status" shows devices list)
                             or LID (eg. "-d lid-44")
+  get info:
     -o <output_category>    Only display $outputs information
     -T                      get QSFP modules temperature
+
+  set info:
+    -S <description>        set device description ($MAX_ND_LEN char max.)
 
 EOU
     return 0
@@ -138,8 +170,9 @@ EOU
 outputs="inventory|vitals|status"
 out=""
 dev=""
+desc=""
 opt_T=0
-optspec="hd:To:"
+optspec="hd:To:S:"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
         h|\?)
@@ -159,11 +192,24 @@ while getopts "$optspec" optchar; do
                 exit 2
             }
             ;;
+        S)
+            desc=${OPTARG}
+            [[ ${#desc} -gt $MAX_ND_LEN ]] && {
+                err "description string > $MAX_ND_LEN characters"
+                exit 2
+        }
+            ;;
     esac
 done
 
 # drop -T for inventory/status outputs
 [[ "$out" =~ inventory|status ]] && opt_T=0
+
+# check conflicting options
+[[ -n "$desc" ]] && [[ -n "$out" || "$opt_T" -eq 1 ]] && {
+    err "conflicting options, can't get and set info at the same time"
+    exit 2
+}
 
 
 ## -- checks ------------------------------------------------------------------
@@ -191,6 +237,13 @@ mft_req="4.18.0"
 [[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" \
     = "$mft_req" ]] ||\
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
+# minimum requirement to set device version
+mft_req_desc="4.22.0"
+[[ "$desc" != "" ]] && {
+    [[ "$(printf '%s\n' "$mft_req_desc" "$mft_cur" | sort -V | head -n1)" = \
+       "$mft_req_desc" ]] || \
+        err "MFT >= $mft_req_desc required to set device description"
+}
 
 # device
 [[ $dev == "" ]] && err "missing device argument"
@@ -201,7 +254,7 @@ mft_req="4.18.0"
 }
 
 
-## -- data --------------------------------------------------------------------
+## -- initiate registers ------------------------------------------------------
 
 # PRM registers
 # cf. mft/prm_dbs/switch/ext/register_access_table.adb
@@ -253,6 +306,47 @@ while read -r r v; do
     [[ "$o" =~ -E- ]] && [[ $r != MGPIR ]] && err "${o/-E-/}"
     reg[$r]=$o
 done <<< "$_regs"
+
+
+## -- node description mgmt ---------------------------------------------------
+
+[[ -n "$desc" ]] && {
+    # get current node description
+    cur_nd=$(mstr_dec "node_description" SPZR)
+    echo "Device: $dev"
+    echo "  Current node description: $cur_nd"
+    echo "  Set node description to : $desc"
+    read -p ">> Confirm? (y/N) " -n 1 -r
+    echo
+    [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+    echo -n "Setting new node description... "
+
+    # convert string to hex array
+    mapfile -t nd_arr < <(stoh "$desc")
+    val="ndm=0x1"
+    for e in "${!nd_arr[@]}"; do
+        val+=",node_description[$e]=${nd_arr[$e]}"
+    done
+    # fill all remaining fields with 0s to make sure we override all of the
+    # previous node description
+    ((e++))
+    while [[ $e -le 15 ]]; do
+        val+=",node_description[$e]=0x00000000"
+        ((e++))
+    done
+    mlxreg_out=$(mlxreg_ext -d "$dev" --reg_name SPZR --set "$val" \
+                            --indexes "swid=0x0" --yes)
+    ret=$?
+    [[ "$ret" != 0 ]] && {
+        err "$mlxreg_out"
+        exit $ret
+    }
+    echo "done!"
+    exit 0
+}
+
+
+## -- data gathering ----------------------------------------------------------
 
 # extract data from register values
 # inventory
@@ -377,13 +471,6 @@ done
 
 # TODO consider cable information in PDDR
 # idx local_port=0x[portnum],pnat=0x0,page_select=0x3,group_opcode=0x0 for PHYs
-
-# TODO set node description in SPZR
-# mlxreg -d $dev --reg_name SPZR --set "ndm=0x1,node_description[0]=0x666f6f6f"\
-#                --indexes "swid=0x0"
-# but there seems to be register size issues:
-# https://github.com/Mellanox/mstflint/issues/329
-
 
 
 ## -- output ------------------------------------------------------------------

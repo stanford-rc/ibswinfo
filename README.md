@@ -4,8 +4,8 @@ Get information from unmanaged NVIDIA Infiniband switches.
 
 ## Description
 
-`ibswinfo` is a simple script to get status and monitoring information
-from unmanaged NVIDIA Infiniband switches.
+`ibswinfo` is a simple script to get status and monitoring information from
+unmanaged NVIDIA Infiniband switches.
 
 NVIDIA Infiniband switches come in two flavors:
 
@@ -15,18 +15,24 @@ NVIDIA Infiniband switches come in two flavors:
 
 * unmanaged switches are just that: unmanaged.
 
-Some in-band management is possible for unmanaged switches with NVIDIA
-firmware tools, but the only way to get their status is via the LEDs on their
-chassis: they're either green (that's good), or red (that's bad). But you won't
-know unless you physically take a look at them, which makes it difficult to get
+Some in-band management is possible for unmanaged switches with NVIDIA firmware
+tools, but the only way to get their status is via the LEDs on their chassis:
+they're either green (that's good), or red (that's bad). But you won't know
+unless you physically take a look at them, which makes it difficult to get
 notifications and alerts when problems occur.
-
 
 `ibswinfo` helps solve this problem, by leveraging [NVIDIA Firmware Tools
 (MFT)](https://network.nvidia.com/products/adapter-software/firmware-tools/) to
 allow sysadmins to get more information about their unmanaged Infiniband
 switches. It can be used to gather hardware vitals such as fan speeds or
 temperatures, and monitor the switches more closely.
+
+As of version [releases/tag/0.6](0.6), `ibswinfo` also allows setting a
+user-friendly name (node description) for unmanaged switches. No more endless
+lists of identical and unhelpful switch names like "SwitchX - Mellanox
+echnologies", sysadmins can now customize each switch by setting a
+descriptive name, using their model, physical location, cluster name, etc. and
+make each switch more easily identifiable.
 
 
 ## Installation
@@ -35,7 +41,11 @@ temperatures, and monitor the switches more closely.
 
 * [NVIDIA Firmware Tools
   (MFT)](https://network.nvidia.com/products/adapter-software/firmware-tools/)
-  >= 4.18.0
+
+    \>= 4.18.0
+
+    \>= 4.22.0 for switch name setting support
+
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
 * `bash`, `coreutils`, `awk` and `sed`
 
@@ -54,7 +64,13 @@ the NVIDIA Software Tools service, or by LID.
 
     Check that `/dev/mst` contains entries for your unmanaged switches (they
     should look like `/dev/mst/SW_*`), and you can run `ibswinfo` like this:
-    `./ibswinfo.sh -d /dev/mst/SW`
+    ```
+    # ./ibswinfo.sh -d /dev/mst/SW_model_node-desc_lid-0x0001
+    ```
+    or without the `/dev/mst` prefix, using the virtual device name directly:
+    ```
+    # ./ibswinfo.sh -d SW_model_node-desc_lid-0x0001
+    ```
 
 * to address switches by LID, starting the `mst` service is not required. You
   can get currently assigned LIDs with `ibswitches`, and run `ibswinfo`
@@ -68,8 +84,6 @@ the NVIDIA Software Tools service, or by LID.
 * SB7890 Switch-IB2 (EDR)
 * QM8790 Quantum (HDR)
 
-
-
 Limited support is also available for the managed version of those switches:
 * SB7800 Switch-IB2 (EDR)
 * QM8700 Quantum (HDR)
@@ -81,6 +95,7 @@ we'll complete the list._
 
 ### Available information
 
+* Node description (switch name)
 * Part number, serial number
 * PSID, GUID, firmware version
 * Uptime
@@ -92,12 +107,17 @@ we'll complete the list._
 ## Usage
 
 ```
-Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>]
+Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>] [-S <description>]
 
+  global options:
     -d <device>             MST device path ("mst status" shows devices list)
                             or LID (eg. "-d lid-44")
+  get info:
     -o <output_category>    Only display inventory|vitals|status information
     -T                      get QSFP modules temperature
+
+  set info:
+    -S <description>        set device description (63 char max.)
 
 ```
 
@@ -107,7 +127,7 @@ By default, `ibswinfo` presents all the available information for a switch in a
 table-like output:
 
 ```
-# ./ibswinfo.sh -d /dev/mst/<device>
+# ./ibswinfo.sh -d <device>
 =================================================
 <node description>
 =================================================
@@ -163,7 +183,7 @@ Targeted outputs are designed to be parsed for input to other tools.
 For instance, to only get hardware vitals, including QSFP temperatures:
 
 ```
-# ./ibswinfo -d /dev/mst/<device> -o vitals -T
+# ./ibswinfo -d <device> -o vitals -T
 uptime (sec)       : 16982312
 psu0.power (W)     : 92
 psu1.power (W)     : 102
@@ -218,7 +238,7 @@ fan#8.speed (rpm)  : 5421
 Or, to only get fans and power supplies' status:
 
 ```
-# ./ibswinfo -d /dev/mst/<device> -o status
+# ./ibswinfo -d <device> -o status
 psu0.status        : OK
 psu0.dc            : OK
 psu0.fan           : OK
@@ -227,3 +247,45 @@ psu1.dc            : OK
 psu1.fan           : OK
 fans               : OK
 ```
+
+
+### Setting switch names
+
+*Setting and modifying a switch name (node description) requires `ibswinfo` >= 0.6 and MFT >= 4.22.0*
+
+Unmanaged switches' node description can be modified, for easier
+identification.
+
+To update a switch's name (node description):
+```
+# ./ibswinfo -d <device> -S <new_node_description>
+Device: <device>
+  Current node description: <old_node_description>
+  Set node description to : <new_node_description>
+>> Confirm? (y/N) y
+Setting new node description... done!
+```
+
+
+Setting customized and descriptive switch names allows better identification of
+switches in the datacenter.
+
+Before:
+```
+# ibswitches
+Switch  : 0xXXXXXXXXXXXXXXXa ports 37 "SwitchX - Mellanox Technologies" base port 0 lid 1 lmc 0
+Switch  : 0xXXXXXXXXXXXXXXXb ports 37 "SwitchX - Mellanox Technologies" base port 0 lid 2 lmc 0
+Switch  : 0xXXXXXXXXXXXXXXXc ports 37 "SwitchX - Mellanox Technologies" base port 0 lid 3 lmc 0
+Switch  : 0xXXXXXXXXXXXXXXXd ports 37 "SwitchX - Mellanox Technologies" base port 0 lid 4 lmc 0
+```
+
+After:
+```
+# ibswitches
+Switch  : 0xXXXXXXXXXXXXXXXa ports 37 "switch1 in rack1 U1" base port 0 lid 1 lmc 0
+Switch  : 0xXXXXXXXXXXXXXXXb ports 37 "switch2 in rack1 U3" base port 0 lid 2 lmc 0
+Switch  : 0xXXXXXXXXXXXXXXXc ports 37 "switch3 in rack1 U5" base port 0 lid 3 lmc 0
+Switch  : 0xXXXXXXXXXXXXXXXd ports 37 "switch4 in rack1 U7" base port 0 lid 4 lmc 0
+```
+
+
