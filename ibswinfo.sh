@@ -234,16 +234,12 @@ done
 # MFT version
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"
-[[ "$(printf '%s\n' "$mft_req" "$mft_cur" | sort -V | head -n1)" \
-    = "$mft_req" ]] ||\
+mft_req_desc="4.22.0" # minimum requirement to set device version
+mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
+[[ ${mft_cur//./} -lt ${mft_req//./} ]] && \
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
-# minimum requirement to set device version
-mft_req_desc="4.22.0"
-[[ "$desc" != "" ]] && {
-    [[ "$(printf '%s\n' "$mft_req_desc" "$mft_cur" | sort -V | head -n1)" = \
-       "$mft_req_desc" ]] || \
-        err "MFT >= $mft_req_desc required to set device description"
-}
+[[ "$desc" != "" ]] && [[ ${mft_cur//./} -lt ${mft_req_desc//./} ]] && \
+    err "MFT >= $mft_req_desc required to set device description"
 
 # device
 [[ $dev == "" ]] && err "missing device argument"
