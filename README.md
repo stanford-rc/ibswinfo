@@ -27,12 +27,12 @@ allow sysadmins to get more information about their unmanaged Infiniband
 switches. It can be used to gather hardware vitals such as fan speeds or
 temperatures, and monitor the switches more closely.
 
-As of version [releases/tag/0.6](0.6), `ibswinfo` also allows setting a
-user-friendly name (node description) for unmanaged switches. No more endless
-lists of identical and unhelpful switch names like "SwitchX - Mellanox
-echnologies", sysadmins can now customize each switch by setting a
-descriptive name, using their model, physical location, cluster name, etc. and
-make each switch more easily identifiable.
+As of version [0.6](https://github.com/stanford-rc/ibswinfo/releases/tag/0.6),
+`ibswinfo` also allows setting a user-friendly name (node description) for
+unmanaged switches. No more endless lists of identical and unhelpful switch
+names like "SwitchX - NVIDIA Networking", sysadmins can now customize each
+switch by setting a descriptive name, using their model, physical location,
+cluster name, etc. and make each switch more easily identifiable.
 
 
 ## Installation
@@ -80,7 +80,8 @@ the NVIDIA Software Tools service, or by LID.
 ## Supported hardware
 
 `ibswinfo` has been tested with the following unmanaged Infiniband switches:
-* SB7790 Switch-IB (EDR) (_known limitation: QSFP module temperatures reported as 0_)
+* SB7790 Switch-IB (EDR) (_known limitation: QSFP module temperatures reported
+  as 0_)
 * SB7890 Switch-IB2 (EDR)
 * QM8790 Quantum (HDR)
 
@@ -250,13 +251,12 @@ fans               : OK
 
 
 ### Setting switch names
+*requires `ibswinfo` >= 0.6 and MFT >= 4.22.0*
 
-*Setting and modifying a switch name (node description) requires `ibswinfo` >= 0.6 and MFT >= 4.22.0*
+Unmanaged switches' node descriptions can be customized, for easier management
+and better switch identification.
 
-Unmanaged switches' node description can be modified, for easier
-identification.
-
-To update a switch's name (node description):
+To update a switch's name to `<new_node description>`"
 ```
 # ./ibswinfo -d <device> -S <new_node_description>
 Device: <device>
@@ -266,9 +266,11 @@ Device: <device>
 Setting new node description... done!
 ```
 
-
-Setting customized and descriptive switch names allows better identification of
-switches in the datacenter.
+By default, unmanaged Infiniband switches all come with the same node
+description, based on their model, and it can quickly become cumbersome to
+determine which is which. Setting customized and descriptive switch names can
+help solve that problem and allow better identification of switches in the
+datacenter.
 
 Before:
 ```
@@ -287,5 +289,6 @@ Switch  : 0xXXXXXXXXXXXXXXXb ports 37 "switch2 in rack1 U3" base port 0 lid 2 lm
 Switch  : 0xXXXXXXXXXXXXXXXc ports 37 "switch3 in rack1 U5" base port 0 lid 3 lmc 0
 Switch  : 0xXXXXXXXXXXXXXXXd ports 37 "switch4 in rack1 U7" base port 0 lid 4 lmc 0
 ```
+
 
 
