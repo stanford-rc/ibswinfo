@@ -1,13 +1,13 @@
 # ibswinfo
-Get information from unmanaged Mellanox Infiniband switches.
+Get information from unmanaged NVIDIA Infiniband switches.
 
 
 ## Description
 
 `ibswinfo` is a simple script to get status and monitoring information
-from unmanaged Mellanox Infiniband switches.
+from unmanaged NVIDIA Infiniband switches.
 
-Mellanox Infiniband switches come in two flavors:
+NVIDIA Infiniband switches come in two flavors:
 
 * managed switches have their own management controller, which allows
   monitoring fan speeds and temperatures, getting serial numbers, or updating
@@ -15,15 +15,15 @@ Mellanox Infiniband switches come in two flavors:
 
 * unmanaged switches are just that: unmanaged.
 
-Some in-band management is possible for unmanaged switches with Mellanox
+Some in-band management is possible for unmanaged switches with NVIDIA
 firmware tools, but the only way to get their status is via the LEDs on their
 chassis: they're either green (that's good), or red (that's bad). But you won't
 know unless you physically take a look at them, which makes it difficult to get
 notifications and alerts when problems occur.
 
 
-`ibswinfo` helps solve this problem, by leveraging [Mellanox Firmware Tools
-(MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) to
+`ibswinfo` helps solve this problem, by leveraging [NVIDIA Firmware Tools
+(MFT)](https://network.nvidia.com/products/adapter-software/firmware-tools/) to
 allow sysadmins to get more information about their unmanaged Infiniband
 switches. It can be used to gather hardware vitals such as fan speeds or
 temperatures, and monitor the switches more closely.
@@ -33,16 +33,16 @@ temperatures, and monitor the switches more closely.
 
 ### Dependencies
 
-* [Mellanox Firmware Tools
-  (MFT)](https://www.mellanox.com/products/adapter-software/firmware-tools) >=
-  4.18.0
+* [NVIDIA Firmware Tools
+  (MFT)](https://network.nvidia.com/products/adapter-software/firmware-tools/)
+  >= 4.18.0
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
 * `bash`, `coreutils`, `awk` and `sed`
 
 ### Preparation
 
 `ibswinfo` can address switches by using the virtual devices created by MST,
-the Mellanox Software Tools service, or by LID.
+the NVIDIA Software Tools service, or by LID.
 
 * to use the MST virtual devices, you can start the `mst` service and populate
   entries in `/dev/mst` with:
