@@ -325,10 +325,10 @@ done <<< "$_regs"
     done
     # fill all remaining fields with 0s to make sure we override all of the
     # previous node description
-    ((e++))
+    ((e+=1))
     while [[ $e -le 15 ]]; do
         val+=",node_description[$e]=0x00000000"
-        ((e++))
+        ((e+=1))
     done
     mlxreg_out=$(mlxreg_ext -d "$dev" --reg_name SPZR --set "$val" \
                             --indexes "swid=0x0" --yes)
