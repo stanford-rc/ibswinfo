@@ -289,7 +289,8 @@ esac
 [[ ${mft_cur//./} -gt 4150 ]] && add_idx="slot_index=0x0" || add_idx=""
 [[ ${mft_cur//./} -gt 4190 && \
    ${mft_cur//./} -lt 4210 ]] && rid[MGIR]="module_base=0x0"
-rid[SPZR]="swid=0x0"
+[[ ${mft_cur//./} -ge 4230 ]] && rid[SPZR]="router_entity=0x0,"
+rid[SPZR]+="swid=0x0"
 rid[MTMP]="sensor_index=0x0${add_idx:+,$add_idx}"
 rid[MTCAP]="$add_idx"
 # get registers
