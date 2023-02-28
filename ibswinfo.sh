@@ -332,7 +332,7 @@ done <<< "$_regs"
         ((e+=1))
     done
     mlxreg_out=$(mlxreg_ext -d "$dev" --reg_name SPZR --set "$val" \
-                            --indexes "swid=0x0" --yes)
+                            --indexes "${rid[SPZR]}" --yes)
     ret=$?
     [[ "$ret" != 0 ]] && {
         err "$mlxreg_out"
