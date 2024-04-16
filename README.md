@@ -89,7 +89,8 @@ Limited support is also available for the managed version of those switches:
 * SB7800 Switch-IB2 (EDR)
 * QM8700 Quantum (HDR)
 
-_If you find other working models, please feel free to open an
+> [!NOTE]
+> If you find other working models, please feel free to open an
 [issue](https://github.com/stanford-rc/ibswinfo/issues/new) and
 we'll complete the list._
 
