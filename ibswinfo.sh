@@ -161,6 +161,7 @@ Usage: ${0##*/} -d <device> [-T] [-o <$outputs>] [-S <description>]
 
   set info:
     -S <description>        set device description ($MAX_ND_LEN char max.)
+    -y                      skip confirmation
 
 EOU
     return 0
@@ -172,7 +173,8 @@ out=""
 dev=""
 desc=""
 opt_T=0
-optspec="hd:To:S:"
+opt_y=0
+optspec="hd:To:S:y"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
         h|\?)
@@ -199,6 +201,9 @@ while getopts "$optspec" optchar; do
                 exit 2
         }
             ;;
+	y)
+            opt_y=1
+	    ;;
     esac
 done
 
@@ -313,9 +318,11 @@ done <<< "$_regs"
     echo "Device: $dev"
     echo "  Current node description: $cur_nd"
     echo "  Set node description to : $desc"
-    read -p ">> Confirm? (y/N) " -n 1 -r
-    echo
-    [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+    [[ "$opt_y" == "0" ]] && {
+        read -p ">> Confirm? (y/N) " -n 1 -r
+        echo
+        [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+    }
     echo -n "Setting new node description... "
 
     # convert string to hex array
