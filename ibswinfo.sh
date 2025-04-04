@@ -372,15 +372,15 @@ done <<< "$_regs"
     pn=$(mstr_dec "part_number"   MSGI)
     sn=$(mstr_dec "serial_number" MSGI)
     cn=$(mstr_dec "roduct_name"   MSGI)
-    rv=$(htos "$(awk '/revision/  {printf $NF}' <<< "${reg[MSGI]}")")
+    rv=$(htos "$(awk '/^revision /  {printf $NF}' <<< "${reg[MSGI]}")")
 
     # PSID
     psid=$(mstr_dec '^psid' MGIR)
 
     # FW version
-    maj=$(htod "$(awk '/extended_major/ {printf $NF}' <<< "${reg[MGIR]}")")
-    min=$(htod "$(awk '/extended_minor/ {printf $NF}' <<< "${reg[MGIR]}")")
-    sub=$(htod "$(awk '/extended_sub_minor/ {printf $NF}' <<< "${reg[MGIR]}")")
+    maj=$(htod "$(awk '/^extended_major / {printf $NF}' <<< "${reg[MGIR]}")")
+    min=$(htod "$(awk '/^extended_minor / {printf $NF}' <<< "${reg[MGIR]}")")
+    sub=$(htod "$(awk '/^extended_sub_minor / {printf $NF}' <<< "${reg[MGIR]}")")
 
     # CPLD version
     cpld=$(htod "$(awk '/^version / {printf $NF}' <<< "${reg[MSCI]}")")
@@ -388,15 +388,15 @@ done <<< "$_regs"
     # node description
     #shellcheck disable=SC2046
     nd=$(mstr_dec "node_description" SPZR)
-    guid=$(awk '/node_guid/ {gsub(/0x/,"",$NF); g=g$NF} END {print "0x"g}' \
+    guid=$(awk '/^node_guid/ {gsub(/0x/,"",$NF); g=g$NF} END {print "0x"g}' \
           <<< "${reg[SPZR]}")
 }
 
 # status
 [[ ! "$out" =~ inventory|vitals ]] && {
     # fan under/over limit alerts
-    fu=$(htod "$(awk '/fan_under_limit/ {printf $NF}' <<< "${reg[FORE]}")")
-    fo=$(htod "$(awk '/fan_over_limit/ {printf $NF}'  <<< "${reg[FORE]}")")
+    fu=$(htod "$(awk '/^fan_under_limit / {printf $NF}' <<< "${reg[FORE]}")")
+    fo=$(htod "$(awk '/^fan_over_limit / {printf $NF}'  <<< "${reg[FORE]}")")
     # TODO break down FORE bitmasks to get alerted fan id
     [[ $((fo+fu)) == 0 ]] && fa="OK" || fa="ERROR"
 }
@@ -413,14 +413,14 @@ done <<< "$_regs"
     fi
 
     # uptime
-    h_uptime=$(awk '/uptime/ {print $NF}' <<< "${reg[MGIR]}")
+    h_uptime=$(awk '/^uptime / {print $NF}' <<< "${reg[MGIR]}")
     s_uptime=$(htod "$h_uptime")
 
     # temperatures
     _tp=$(htod "$(awk '/^temperature /    {printf $NF}' <<< "${reg[MTMP]}")")
-    _mt=$(htod "$(awk '/max_temperature / {printf $NF}' <<< "${reg[MTMP]}")")
-    _twl=$(htod "$(awk '/temperature_threshold_lo / {printf $NF}' <<< "${reg[MTMP]}")")
-    _twh=$(htod "$(awk '/temperature_threshold_hi / {printf $NF}' <<< "${reg[MTMP]}")")
+    _mt=$(htod "$(awk '/^max_temperature / {printf $NF}' <<< "${reg[MTMP]}")")
+    _twl=$(htod "$(awk '/^temperature_threshold_lo / {printf $NF}' <<< "${reg[MTMP]}")")
+    _twh=$(htod "$(awk '/^temperature_threshold_hi / {printf $NF}' <<< "${reg[MTMP]}")")
     tp=$((_tp/8))
     mt=$((_mt/8))
     twl=$((_twl/8)) twh=$((_twh/8))
@@ -441,9 +441,9 @@ done <<< "$_regs"
 
     # fan speeds
     # get active tachos
-    at_bmsz=$(htod "$(awk '/tacho_active / {printf $(NF-2)}' \
+    at_bmsz=$(htod "$(awk '/^tacho_active / {printf $(NF-2)}' \
                       < <(show_reg MFCR))")
-    at_bmsk=$(htob "$(awk '/tacho_active / {printf $NF}' \
+    at_bmsk=$(htob "$(awk '/^tacho_active / {printf $NF}' \
                       <<< "${reg[MFCR]}")" "$at_bmsz")
     # gather fan speeds for active tachos
     for (( i=${#at_bmsk}-1; i>0; i-- )); do
@@ -451,7 +451,7 @@ done <<< "$_regs"
     done
     _fsps=$(for t in ${at_idxs:-}; do
                 echo "$t" "$(get_reg MFSM "tacho=0x$(dtoh "$t")" |&
-                             awk '/^rpm/ {print $NF}')" &
+                             awk '/^rpm / {print $NF}')" &
              done)
     while read -r t s; do
         fs[$t]=$(htod "${s:-0}")
