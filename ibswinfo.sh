@@ -404,7 +404,7 @@ done <<< "$_regs"
 # vitals and status
 [[ ! $out =~ inventory ]] && {
     # number of ports
-    _np=$(awk '/num_of_modules/ {printf $NF}' <<< "${reg[MGPIR]}")
+    _np=$(awk '/num_of_modules / {printf $NF}' <<< "${reg[MGPIR]}")
     if [[ $_np =~ ^0x ]]; then
         np=$(htod "$_np")
     else # try to get that from the SM
