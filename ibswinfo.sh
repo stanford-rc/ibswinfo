@@ -273,6 +273,7 @@ mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 # MGIR  -  Management General Information Register
 # MGPIR -  Management General Peripheral Information Register
 # MSGI  -  Misc System General Information Register
+# MSCI  -  ...? CPLD information
 # MSPS  -  Misc System Power Supply Register
 # MTMP  -  Management Temperature
 # MTCAP -  Management Temperature Capabilities
@@ -286,7 +287,7 @@ declare -A rid
 # select register to read, depending on what output is required
 case $out in
     inventory)
-        reg_names="MGIR MSGI SPZR MSPS"
+        reg_names="MGIR MSGI MSCI SPZR MSPS"
         ;;
     status)
         reg_names="MGIR MGPIR MSPS MTMP MTCAP MFCR FORE"
@@ -295,7 +296,7 @@ case $out in
         reg_names="MGIR MGPIR MSPS MTMP MTCAP MFCR"
         ;;
     *)
-        reg_names="MGIR MGPIR MSGI MSPS SPZR MTMP MTCAP MFCR FORE"
+        reg_names="MGIR MGPIR MSGI MSCI MSPS SPZR MTMP MTCAP MFCR FORE"
         ;;
 esac
 # some registers need an index
@@ -306,6 +307,7 @@ add_idx="" add_tmp_idx=""
    ${mft_cur//./} -lt 4210 ]] && rid[MGIR]="module_base=0x0"
 [[ ${mft_cur//./} -ge 4230 ]] && rid[SPZR]="router_entity=0x0,"
 [[ ${mft_cur//./} -ge 4301 ]] && add_tmp_idx="asic_index=0x0,ig=0x0,i=0x0,"
+rid[MSCI]+="index=0x0" # handle main CPLD only
 rid[SPZR]+="swid=0x0"
 rid[MTMP]+="sensor_index=0x0${add_idx:+,$add_idx}${add_tmp_idx:+,$add_tmp_idx}"
 rid[MTCAP]="$add_idx"
@@ -379,6 +381,9 @@ done <<< "$_regs"
     maj=$(htod "$(awk '/extended_major/ {printf $NF}' <<< "${reg[MGIR]}")")
     min=$(htod "$(awk '/extended_minor/ {printf $NF}' <<< "${reg[MGIR]}")")
     sub=$(htod "$(awk '/extended_sub_minor/ {printf $NF}' <<< "${reg[MGIR]}")")
+
+    # CPLD version
+    cpld=$(htod "$(awk '/^version / {printf $NF}' <<< "${reg[MSCI]}")")
 
     # node description
     #shellcheck disable=SC2046
@@ -503,6 +508,7 @@ case $out in
         out_kv "product_name" "$cn"
         out_kv "revision" "$rv"
         out_kv "fw_version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
+        out_kv "cpld" "$cpld"
         [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
             for i in $psu_idxs; do
                 out_kv "psu$i.part_number"   "${ps[$i.pn]}"
@@ -560,6 +566,7 @@ out_kv "ports" "$np"
 out_kv "PSID" "$psid"
 out_kv "GUID" "$guid"
 out_kv "firmware version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
+out_kv "CPLD" "$cpld"
 sep
 out_kv "uptime (d-h:m:s)" "$(sec_to_dhms "$s_uptime")"
 sep
