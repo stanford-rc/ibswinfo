@@ -456,7 +456,6 @@ done <<< "$_regs"
     while read -r t s; do
         fs[$t]=$(htod "${s:-0}")
     done <<< "$_fsps"
-
 }
 
 # PSUs (inventory/status/vitals)
@@ -546,8 +545,7 @@ case $out in
             done
         }
         for t in ${at_idxs:-}; do
-            s=${fs[$t]}
-            out_kv "fan#$t.speed (rpm)" $((s>10000?s/2:s))
+            out_kv "fan#$t.speed (rpm)" "${fs[$t]}"
         done
         exit 0
         ;;
@@ -594,8 +592,7 @@ sep
 # fan status
 out_kv "fan status" "$fa"
 for t in ${at_idxs:-}; do
-    s=${fs[$t]}
-    out_kv "fan#$t (rpm)" $((s>10000?s/2:s))
+    out_kv "fan#$t (rpm)" "${fs[$t]}"
 done
 [[ ${at_idxs:-} != "" ]] && sep
 
