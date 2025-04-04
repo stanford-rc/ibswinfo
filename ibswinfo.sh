@@ -300,12 +300,14 @@ case $out in
 esac
 # some registers need an index
 # and that depends on the version of MFT we're using
-[[ ${mft_cur//./} -gt 4150 ]] && add_idx="slot_index=0x0" || add_idx=""
+add_idx="" add_tmp_idx=""
+[[ ${mft_cur//./} -gt 4150 ]] && add_idx="slot_index=0x0"
 [[ ${mft_cur//./} -gt 4190 && \
    ${mft_cur//./} -lt 4210 ]] && rid[MGIR]="module_base=0x0"
 [[ ${mft_cur//./} -ge 4230 ]] && rid[SPZR]="router_entity=0x0,"
+[[ ${mft_cur//./} -ge 4301 ]] && add_tmp_idx="asic_index=0x0,ig=0x0,i=0x0,"
 rid[SPZR]+="swid=0x0"
-rid[MTMP]="sensor_index=0x0${add_idx:+,$add_idx}"
+rid[MTMP]+="sensor_index=0x0${add_idx:+,$add_idx}${add_tmp_idx:+,$add_tmp_idx}"
 rid[MTCAP]="$add_idx"
 # get registers
 _regs=$(for r in $reg_names; do
@@ -412,15 +414,19 @@ done <<< "$_regs"
     # temperatures
     _tp=$(htod "$(awk '/^temperature /    {printf $NF}' <<< "${reg[MTMP]}")")
     _mt=$(htod "$(awk '/max_temperature / {printf $NF}' <<< "${reg[MTMP]}")")
+    _twl=$(htod "$(awk '/temperature_threshold_lo / {printf $NF}' <<< "${reg[MTMP]}")")
+    _twh=$(htod "$(awk '/temperature_threshold_hi / {printf $NF}' <<< "${reg[MTMP]}")")
     tp=$((_tp/8))
     mt=$((_mt/8))
+    twl=$((_twl/8)) twh=$((_twh/8))
 
     # optionally get QSFP temperatures
     [[ "$opt_T" == "1" ]] && {
         _qtps=$(for q in $(seq 1 $np); do
                     i=$(dtoh $((q+63)))
-                    echo "$q" "$(get_reg MTMP \
-                                    "${add_idx:+$add_idx,}sensor_index=0x$i" |\
+                    r="sensor_index=0x$i${add_idx:+,$add_idx}"
+                    r+=${add_tmp_idx:+,$add_tmp_idx}
+                    echo "$q" "$(get_reg MTMP "$r" |\
                                  awk '/^temperature / {print $NF}')" &
                 done)
         while read -r q t; do
@@ -570,6 +576,7 @@ sep
 }
 out_kv "temperature (C)" "${tp}"
 out_kv "max temp (C)" "${mt}"
+out_kv "warn threshold (C)" "$twl/$twh (low/high)"
 [[ "$opt_T" == "1" ]] && {
     for q in $(seq 1 $np); do
         out_kv "QSFP#$(printf "%02d" "$q") (C) " "${qt[$q]}"
