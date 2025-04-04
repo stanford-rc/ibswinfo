@@ -162,7 +162,7 @@ Usage: ${0##*/} -d <device> [-T] [-o <$outputs>] [-S <description>]
                             or LID (eg. "-d lid-44")
   get info:
     -o <output_category>    Only display $outputs information
-    -T                      get QSFP modules temperature
+    -T                      get transceiver modules temperature
 
   set info:
     -S <description>        set device description ($MAX_ND_LEN char max.)
@@ -403,7 +403,7 @@ done <<< "$_regs"
 
 # vitals and status
 [[ ! $out =~ inventory ]] && {
-    # number of ports
+    # number of modules
     _np=$(awk '/num_of_modules / {printf $NF}' <<< "${reg[MGPIR]}")
     if [[ $_np =~ ^0x ]]; then
         np=$(htod "$_np")
@@ -425,7 +425,7 @@ done <<< "$_regs"
     mt=$((_mt/8))
     twl=$((_twl/8)) twh=$((_twh/8))
 
-    # optionally get QSFP temperatures
+    # optionally get modules temperature
     [[ "$opt_T" == "1" ]] && {
         _qtps=$(for q in $(seq 1 $np); do
                     i=$(dtoh $((q+63)))
@@ -542,7 +542,7 @@ case $out in
         out_kv "max.temp (C)" "${mt}"
         [[ "$opt_T" == "1" ]] && {
             for q in $(seq 1 $np); do
-                out_kv "QSFP#$(printf "%02d" "$q").temp (C)" "${qt[$q]}"
+                out_kv "module#$(printf "%02d" "$q").temp (C)" "${qt[$q]}"
             done
         }
         for t in ${at_idxs:-}; do
@@ -562,7 +562,7 @@ out_kv "part number" "$pn"
 out_kv "serial number" "$sn"
 out_kv "product name" "$cn"
 out_kv "revision" "$rv"
-out_kv "ports" "$np"
+out_kv "modules" "$np"
 out_kv "PSID" "$psid"
 out_kv "GUID" "$guid"
 out_kv "firmware version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
@@ -586,7 +586,7 @@ out_kv "max temp (C)" "${mt}"
 out_kv "warn threshold (C)" "$twl/$twh (low/high)"
 [[ "$opt_T" == "1" ]] && {
     for q in $(seq 1 $np); do
-        out_kv "QSFP#$(printf "%02d" "$q") (C) " "${qt[$q]}"
+        out_kv "module#$(printf "%02d" "$q") (C) " "${qt[$q]}"
     done
 }
 sep
