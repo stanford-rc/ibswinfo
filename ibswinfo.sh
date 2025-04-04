@@ -550,7 +550,7 @@ esac
 
 ## full (default) output
 dblsep
-echo "$nd"
+echo " $nd"
 dblsep
 out_kv "part number" "$pn"
 out_kv "serial number" "$sn"
