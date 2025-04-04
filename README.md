@@ -92,7 +92,7 @@ Limited support is also available for the managed version of those switches:
 > [!NOTE]
 > If you find other working models, please feel free to open an
 [issue](https://github.com/stanford-rc/ibswinfo/issues/new) and
-we'll complete the list._
+we'll complete the list.
 
 
 ### Available information
@@ -108,7 +108,7 @@ we'll complete the list._
 
 ## Usage
 
-```
+```none
 Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>] [-S <description>]
 
   global options:
@@ -128,7 +128,7 @@ Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>] [-S <descript
 By default, `ibswinfo` presents all the available information for a switch in a
 table-like output:
 
-```
+```none
 # ./ibswinfo.sh -d <device>
 =================================================
 <node description>
@@ -141,6 +141,7 @@ ports              | 40
 PSID               | MT_0000000063
 GUID               | <redacted>
 firmware version   | 27.2000.1886
+CPLD               | 3
 -------------------------------------------------
 uptime (d-h:m:s)   | 196d-07:05:40
 -------------------------------------------------
@@ -159,6 +160,7 @@ PSU1 status        | OK
 -------------------------------------------------
 temperature (C)    | 34
 max temp (C)       | 41
+warn threshold (C) | 95/105 (low/high)
 -------------------------------------------------
 fan status         | OK
 fan#1 (rpm)        | 5426
