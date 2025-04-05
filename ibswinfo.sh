@@ -307,6 +307,7 @@ add_idx="" add_tmp_idx=""
    ${mft_cur//./} -lt 4210 ]] && rid[MGIR]="module_base=0x0"
 [[ ${mft_cur//./} -ge 4230 ]] && rid[SPZR]="router_entity=0x0,"
 [[ ${mft_cur//./} -ge 4301 ]] && add_tmp_idx="asic_index=0x0,ig=0x0,i=0x0,"
+rid[MGPIR]+="slot_index=0x0"
 rid[MSCI]+="index=0x0" # handle main CPLD only
 rid[SPZR]+="swid=0x0"
 rid[MTMP]+="sensor_index=0x0${add_idx:+,$add_idx}${add_tmp_idx:+,$add_tmp_idx}"
@@ -404,13 +405,11 @@ done <<< "$_regs"
 # vitals and status
 [[ ! $out =~ inventory ]] && {
     # number of modules
-    _np=$(awk '/num_of_modules / {printf $NF}' <<< "${reg[MGPIR]}")
-    if [[ $_np =~ ^0x ]]; then
-        np=$(htod "$_np")
-    else # try to get that from the SM
-        _s=$(smpquery NI -G "${guid:-}" | awk -F.  '/NumPorts/ {print $NF}')
-        np=$((_s%2==0?_s:_s-1))
-    fi
+    nm=$(htod "$(awk '/num_of_modules_per_system / {printf $NF}' <<< "${reg[MGPIR]}")")
+    [[ $nm == 0 ]] && \
+        nm=$(htod "$(awk '/num_of_modules / {printf $NF}' <<< "${reg[MGPIR]}")")
+    # max number of ports
+    np=$(htod "$(awk '/num_ports / {printf $NF}' <<< "${reg[MGIR]}")")
 
     # uptime
     h_uptime=$(awk '/^uptime / {print $NF}' <<< "${reg[MGIR]}")
@@ -427,7 +426,7 @@ done <<< "$_regs"
 
     # optionally get modules temperature
     [[ "$opt_T" == "1" ]] && {
-        _qtps=$(for q in $(seq 1 $np); do
+        _qtps=$(for q in $(seq 1 "$nm"); do
                     i=$(dtoh $((q+63)))
                     r="sensor_index=0x$i${add_idx:+,$add_idx}"
                     r+=${add_tmp_idx:+,$add_tmp_idx}
@@ -546,7 +545,7 @@ case $out in
         out_kv "cur.temp (C)" "${tp}"
         out_kv "max.temp (C)" "${mt}"
         [[ "$opt_T" == "1" ]] && {
-            for q in $(seq 1 $np); do
+            for q in $(seq 1 "$nm"); do
                 out_kv "module#$(printf "%02d" "$q").temp (C)" "${qt[$q]}"
             done
         }
@@ -566,7 +565,8 @@ out_kv "part number" "$pn"
 out_kv "serial number" "$sn"
 out_kv "product name" "$cn"
 out_kv "revision" "$rv"
-out_kv "modules" "$np"
+out_kv "modules" "$nm"
+out_kv "max ports" "$np"
 out_kv "PSID" "$psid"
 out_kv "GUID" "$guid"
 out_kv "firmware version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
@@ -589,7 +589,7 @@ out_kv "temperature (C)" "${tp}"
 out_kv "max temp (C)" "${mt}"
 out_kv "warn threshold (C)" "$twl/$twh (low/high)"
 [[ "$opt_T" == "1" ]] && {
-    for q in $(seq 1 $np); do
+    for q in $(seq 1 "$nm"); do
         out_kv "module#$(printf "%02d" "$q") (C) " "${qt[$q]}"
     done
 }
