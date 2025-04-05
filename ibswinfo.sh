@@ -440,11 +440,17 @@ done <<< "$_regs"
     }
 
     # fan speeds
-    # get active tachos
-    at_bmsz=$(htod "$(awk '/^tacho_active / {printf $(NF-2)}' \
-                      < <(show_reg MFCR))")
-    at_bmsk=$(htob "$(awk '/^tacho_active / {printf $NF}' \
-                      <<< "${reg[MFCR]}")" "$at_bmsz")
+    # first tachos bitmask (lsb)
+    atlsb_bmsz=$(awk '/^tacho_active / {printf $(NF-2)}' < <(show_reg MFCR))
+    atlsb_bmsk=$(htob "$(awk '/^tacho_active / {printf $NF}' \
+                         <<< "${reg[MFCR]}")" "$atlsb_bmsz")
+    # second tachos bitmask (msb)
+    atmsb_bmsz=$(awk '/^tacho_active_msb / {printf $(NF-2)}' < <(show_reg MFCR))
+    atmsb_bmsk=$(htob "$(awk '/^tacho_active_msb / {printf $NF}' \
+                         <<< "${reg[MFCR]}")" "$atmsb_bmsz")
+    at_bmsz=$((atlsb_bmsz+atmsb_bmsz))
+    at_bmsk="${atmsb_bmsk}${atlsb_bmsk}"
+
     # gather fan speeds for active tachos
     for (( i=${#at_bmsk}-1; i>0; i-- )); do
         [[ ${at_bmsk:$((i-1)):1} == 1 ]] && at_idxs+="$((at_bmsz-i)) "
