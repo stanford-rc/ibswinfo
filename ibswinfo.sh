@@ -245,7 +245,7 @@ done
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"      # minimum required MFT version
 mft_req_desc="4.22.0" # minimum required MFT version to set device name
-mft_max="4.31.0"      # highest MFT version tested
+mft_max="4.32.0"      # highest MFT version tested
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 [[ ${mft_cur//./} -lt ${mft_req//./} ]] && \
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
