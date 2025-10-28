@@ -600,5 +600,5 @@ out_kv "fan status" "$fa"
 for t in ${at_idxs:-}; do
     out_kv "fan#$t (rpm)" "${fs[$t]}"
 done
-[[ ${at_idxs:-} != "" ]] && sep
+sep
 
