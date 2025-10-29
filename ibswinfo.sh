@@ -196,15 +196,13 @@ while getopts "$optspec" optchar; do
             out=${OPTARG}
             [[ ! "$out" =~ ^($outputs)$ ]] && {
                 err "unknown output requested, not in $outputs"
-                exit 2
             }
             ;;
         S)
             desc=${OPTARG}
             [[ ${#desc} -gt $MAX_ND_LEN ]] && {
                 err "description string > $MAX_ND_LEN characters"
-                exit 2
-        }
+            }
             ;;
 	y)
             opt_y=1
@@ -218,7 +216,6 @@ done
 # check conflicting options
 [[ -n "$desc" ]] && [[ -n "$out" || "$opt_T" -eq 1 ]] && {
     err "conflicting options, can't get and set info at the same time"
-    exit 2
 }
 
 
@@ -237,7 +234,7 @@ tools[mst]="MFT ($MFT_URL)"
 tools[mlxreg]="MFT ($MFT_URL)"
 tools[smpquery]="infiniband-diags"
 for t in "${!tools[@]}"; do
-    type $t &>/dev/null || \
+    type "$t" &>/dev/null || \
         err "$t not found${tools[$t]:+, please install ${tools[$t]}}"
 done
 
@@ -357,7 +354,6 @@ done <<< "$_regs"
     ret=$?
     [[ "$ret" != 0 ]] && {
         err "$mlxreg_out"
-        exit $ret
     }
     echo "done!"
     exit 0
@@ -434,7 +430,7 @@ done <<< "$_regs"
                                  awk '/^temperature / {print $NF}')" &
                 done)
         while read -r q t; do
-            qt[$q]=$(($(htod "$t")/8))
+            qt[q]=$(($(htod "$t")/8))
         done <<< "$_qtps"
     }
 
@@ -459,7 +455,7 @@ done <<< "$_regs"
                              awk '/^rpm / {print $NF}')" &
              done)
     while read -r t s; do
-        fs[$t]=$(htod "${s:-0}")
+        fs[t]=$(htod "${s:-0}")
     done <<< "$_fsps"
 }
 
@@ -470,7 +466,7 @@ declare -A ps
 for i in $psu_idxs; do
     # get PSU status bitmasks, a lot of guessing is taking place here
     for j in 0 1; do
-        _bm[$j]=$(awk -v i="$i" -v j="$j" '$0 ~ "psu"i"\\["j"\\]" {
+        _bm[j]=$(awk -v i="$i" -v j="$j" '$0 ~ "psu"i"\\["j"\\]" {
                     gsub(/0x/,""); print $NF}' <<< "${reg[MSPS]}")
     done
     _pr=${_bm[0]:0:1}   # PSU present
@@ -506,7 +502,7 @@ done
 # targeted outputs
 case $out in
     inventory)
-        out_kv "node_desription" "$nd"
+        out_kv "node_description" "$nd"
         out_kv "part_number" "$pn"
         out_kv "serial" "$sn"
         out_kv "product_name" "$cn"
@@ -601,4 +597,3 @@ for t in ${at_idxs:-}; do
     out_kv "fan#$t (rpm)" "${fs[$t]}"
 done
 sep
-
