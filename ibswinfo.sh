@@ -52,7 +52,7 @@ out_kv() {
 
 # hex to dec
 htod() {
-    local d=$1
+    local d=${1:-0}
     echo $((16#${d//0x/}))
 }
 
@@ -70,7 +70,7 @@ htob() {
 
 # dec to hex
 dtoh() {
-    local h=$1
+    local h=${1:-0}
     printf "%x\n" "$h"
 }
 
