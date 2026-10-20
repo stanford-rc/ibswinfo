@@ -42,12 +42,27 @@ cluster name, etc. and make each switch more easily identifiable.
 * [NVIDIA Firmware Tools
   (MFT)](https://network.nvidia.com/products/adapter-software/firmware-tools/)
 
-    \>= 4.18.0
-
-    \>= 4.22.0 for switch name setting support
+    \>= 4.18.0 for information queries. Setting a switch name does not require MFT.
 
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
 * `bash`, `coreutils`, `awk` and `sed`
+
+For setting switch names, build the `ibsetnd` helper with a C compiler, `make`,
+and the libibmad/libibumad development packages from rdma-core (or OFED).
+On Debian/Ubuntu these are `libibmad-dev` and `libibumad-dev`; on RHEL-family
+systems they are typically `libibmad-devel` and `libibumad-devel`.
+The corresponding runtime libraries must also be installed.
+
+### Build
+
+```sh
+make
+```
+
+This builds `ibsetnd` alongside `ibswinfo.sh`. Run `./ibswinfo.sh` directly
+from the checkout; no installation step is needed. If you copy the script
+elsewhere, copy the helper alongside it. Information queries do not need
+the helper.
 
 ### Preparation
 
@@ -119,7 +134,8 @@ Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>] [-S <descript
     -T                      get QSFP modules temperature
 
   set info:
-    -S <description>        set device description (63 char max.)
+    -S <description>        set device description (64 bytes max.)
+    -y                      skip confirmation
 
 ```
 
@@ -254,7 +270,7 @@ fans               : OK
 
 
 ### Setting switch names
-*requires `ibswinfo` >= 0.6 and MFT >= 4.22.0*
+*requires the built `ibsetnd` helper and libibmad/libibumad runtime libraries*
 
 Unmanaged switches' node descriptions can be customized, for easier management
 and better switch identification.
@@ -292,6 +308,3 @@ Switch  : 0xXXXXXXXXXXXXXXXb ports 37 "switch2 in rack1 U3" base port 0 lid 2 lm
 Switch  : 0xXXXXXXXXXXXXXXXc ports 37 "switch3 in rack1 U5" base port 0 lid 3 lmc 0
 Switch  : 0xXXXXXXXXXXXXXXXd ports 37 "switch4 in rack1 U7" base port 0 lid 4 lmc 0
 ```
-
-
-
