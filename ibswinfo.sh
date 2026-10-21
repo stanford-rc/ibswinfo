@@ -87,32 +87,6 @@ htos() {
     printf "%b\n" "$s" | tr -d \\0
 }
 
-# string to hex array (split and padded)
-#  sample input:
-#    secret message
-#  sample output:
-#    0x73656372
-#    0x6574206d
-#    0x65737361
-#    0x67650000
-stoh() {
-    local str=$*
-    local i chr hex
-    local cks=8 # chunk size for splitting
-    # convert
-    for (( i=0; i<${#str}; i++ )); do
-        chr="${str:$i:1}"
-        hex+=$(printf "%x" "'${chr}")
-    done
-    # pad
-    [[ $((${#hex}%cks)) != 0 ]] && \
-        hex+=$(printf "%-$((cks-${#hex}%cks))s" "" | tr ' ' '0')
-    # split
-    for (( i=0; i<${#hex}; i+=cks )); do
-        echo "0x${hex:$i:$cks}"
-    done
-}
-
 # seconds to d-h:m:s
 sec_to_dhms() {
     local s=$1
@@ -165,7 +139,7 @@ Usage: ${0##*/} -d <device> [-T] [-o <$outputs>] [-S <description>]
     -T                      get transceiver modules temperature
 
   set info:
-    -S <description>        set device description ($MAX_ND_LEN char max.)
+    -S <description>        set device description ($MAX_ND_LEN bytes max.)
     -y                      skip confirmation
 
 EOU
@@ -177,6 +151,7 @@ outputs="inventory|vitals|status"
 out=""
 dev=""
 desc=""
+opt_S=0
 opt_T=0
 opt_y=0
 optspec="hd:To:S:y"
@@ -200,9 +175,12 @@ while getopts "$optspec" optchar; do
             ;;
         S)
             desc=${OPTARG}
-            [[ ${#desc} -gt $MAX_ND_LEN ]] && {
-                err "description string > $MAX_ND_LEN characters"
+            # Count bytes, not locale-dependent characters.
+            desc_len=$(LC_ALL=C printf '%s' "$desc" | wc -c)
+            [[ "$desc_len" -gt "$MAX_ND_LEN" ]] && {
+                err "description string > $MAX_ND_LEN bytes"
             }
+            opt_S=1
             ;;
 	y)
             opt_y=1
@@ -214,7 +192,7 @@ done
 [[ "$out" =~ inventory|status ]] && opt_T=0
 
 # check conflicting options
-[[ -n "$desc" ]] && [[ -n "$out" || "$opt_T" -eq 1 ]] && {
+[[ "$opt_S" == 1 ]] && [[ -n "$out" || "$opt_T" -eq 1 ]] && {
     err "conflicting options, can't get and set info at the same time"
 }
 
@@ -223,6 +201,45 @@ done
 
 # id
 [[ "$(id -u)" == 0 ]] || err "must run as root, aborting."
+
+[[ -n "$dev" ]] || err "missing device argument"
+
+
+## -- node description mgmt ---------------------------------------------------
+
+# Use SMP independently of MFT register access. An empty name clears the field.
+[[ "$opt_S" == 1 ]] && {
+    # locate the helper alongside this script
+    script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+    helper="$script_dir/ibsetnd"
+    [[ -x "$helper" ]] || \
+        err "ibsetnd not found next to ibswinfo.sh; build it with make"
+
+    # get current node description
+    cur_nd=$("$helper" "$dev") || \
+        err "could not read current node description"
+
+    printf 'Device: %s\n'                       "$dev"
+    printf '  Current node description: %s\n'  "$cur_nd"
+    printf '  Set node description to : %s\n'  "$desc"
+
+    [[ "$opt_y" == 0 ]] && {
+        read -p ">> Confirm? (y/N) " -n 1 -r || exit 1
+        echo
+        [[ $REPLY =~ ^[Yy]$ ]] || exit 1
+    }
+
+    # set and verify the new description
+    printf 'Setting new node description... '
+    "$helper" "$dev" "$desc" >/dev/null || \
+        err "node description update failed"
+
+    echo "done!"
+    exit 0
+}
+
+
+## -- information query checks -----------------------------------------------
 
 # tools and dependencies
 declare -A tools
@@ -241,13 +258,10 @@ done
 # MFT version
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"      # minimum required MFT version
-mft_req_desc="4.22.0" # minimum required MFT version to set device name
 mft_max="4.31.0"      # highest MFT version tested
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 [[ ${mft_cur//./} -lt ${mft_req//./} ]] && \
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
-[[ "$desc" != "" ]] && [[ ${mft_cur//./} -lt ${mft_req_desc//./} ]] && \
-    err "MFT >= $mft_req_desc required to set device description"
 [[ ${mft_cur//./} -gt ${mft_max//./} ]] && \
     warn "Not tested with MFT version $mft_cur, YMMV"
 
@@ -319,45 +333,6 @@ while read -r r v; do
     [[ "$o" =~ -E- ]] && [[ $r != MGPIR ]] && err "${o/-E-/}"
     reg[$r]=$o
 done <<< "$_regs"
-
-
-## -- node description mgmt ---------------------------------------------------
-
-[[ -n "$desc" ]] && {
-    # get current node description
-    cur_nd=$(mstr_dec "node_description" SPZR)
-    echo "Device: $dev"
-    echo "  Current node description: $cur_nd"
-    echo "  Set node description to : $desc"
-    [[ "$opt_y" == "0" ]] && {
-        read -p ">> Confirm? (y/N) " -n 1 -r
-        echo
-        [[ $REPLY =~ ^[Yy]$ ]] || exit 1
-    }
-    echo -n "Setting new node description... "
-
-    # convert string to hex array
-    mapfile -t nd_arr < <(stoh "$desc")
-    val="ndm=0x1"
-    for e in "${!nd_arr[@]}"; do
-        val+=",node_description[$e]=${nd_arr[$e]}"
-    done
-    # fill all remaining fields with 0s to make sure we override all of the
-    # previous node description
-    ((e+=1))
-    while [[ $e -le 15 ]]; do
-        val+=",node_description[$e]=0x00000000"
-        ((e+=1))
-    done
-    mlxreg_out=$(mlxreg_ext -d "$dev" --reg_name SPZR --set "$val" \
-                            --indexes "${rid[SPZR]}" --yes)
-    ret=$?
-    [[ "$ret" != 0 ]] && {
-        err "$mlxreg_out"
-    }
-    echo "done!"
-    exit 0
-}
 
 
 ## -- data gathering ----------------------------------------------------------
