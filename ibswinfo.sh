@@ -607,7 +607,7 @@ done <<< "$_regs"
 
     # optionally get modules temperature
     [[ "$opt_T" == "1" ]] && {
-        [[ "$nm" -ge 1 && "$nm" -le 255 ]] || err "could not determine module count"
+        [[ "$nm" -ge 0 && "$nm" -le 255 ]] || err "could not determine module count"
         _qtps=$({ for q in $(seq 1 "$nm"); do
                     get_module_temp "$q" &
                     (( q % MAX_JOBS == 0 )) && wait
