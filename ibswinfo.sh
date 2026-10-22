@@ -22,6 +22,7 @@ set -u      # stop on uninitialized variable
 
 MFT_URL="https://www.mellanox.com/products/adapter-software/firmware-tools"
 MAX_ND_LEN=64
+MAX_JOBS=8
 
 
 ## -- functions ---------------------------------------------------------------
@@ -48,7 +49,8 @@ out_kv() {
     local v=$2
     local s
     [[ "${out:-}" != "" ]] && s=":" || s="|"
-    [[ "$v" != "" ]] && printf "%-*s %s %s\n" "${kv_width:-18}" "$k" "$s" "$v" || return 0
+    [[ "$v" != "" ]] && \
+        printf "%-*s %s %s\n" "${kv_width:-18}" "$k" "$s" "$v" || return 0
 }
 
 # Consume one line per finished query (an empty line means a skipped port).
@@ -159,12 +161,12 @@ cable_record() {
 
     type=${cable[cable_type]:-}
     [[ -n "$type" ]] || {
-        cable_row "port$port" unavailable - - - - - -
+        cable_row "port$port" unavailable
         warn "port $port: PDDR did not return cable_type"
-        return 1
+        return 0
     }
     if [[ "$type" == 4 ]]; then
-        cable_row "port$port" unplugged - - - - - -
+        cable_row "port$port" unplugged
         return 0
     fi
 
@@ -180,17 +182,18 @@ cable_record() {
     identity+=("$value")
 
     length=${cable[cable_length]:-0}
-    value=unknown
+    value=""
     if [[ "$length" -gt 0 && -n "$ident" && -n "${forms[$ident]:-}" ]]; then
         case $ident in
             5|6|7|8|10) # CMIS: low six bits * encoded multiplier
                 case $((length >> 6)) in
-                    0) printf -v value '%d.%d' "$((length % 64 / 10))" "$((length % 64 % 10))" ;;
+                    0) printf -v value '%d.%d' "$((length % 64 / 10))" \
+                                               "$((length % 64 % 10))" ;;
                     1) value=$((length % 64)) ;;
                     2) value=$((length % 64 * 10)) ;;
                     3) value=$((length % 64 * 100)) ;;
                 esac
-                [[ $((length % 64)) == 0 ]] && value=unknown
+                [[ $((length % 64)) == 0 ]] && value=""
                 ;;
             *) value=$length ;;
         esac
@@ -205,34 +208,34 @@ get_cable() (
     idx="local_port=0x$(dtoh "$local_port")"
     for r in PMLP PLIB; do
         if ! reg[$r]=$(get_reg "$r" "$idx") || [[ "${reg[$r]}" =~ -E- ]]; then
-            cable_row "local_port$local_port" unavailable - - - - - -
+            cable_row "local_port$local_port" unavailable
             warn "local port $local_port: ${reg[$r]}"
             return 0
         fi
         if [[ "$r" == PMLP ]]; then
             width=$(awk '$1 == "width" {print $NF}' <<< "${reg[PMLP]}")
             [[ "$width" =~ ^0x[[:xdigit:]]{1,8}$ ]] || {
-                cable_row "local_port$local_port" unavailable - - - - - -
+                cable_row "local_port$local_port" unavailable
                 warn "local port $local_port: missing PMLP width"
                 return 0
             }
-            [[ $((width)) == 0 ]] && return 0
+            [[ $((width)) == 0 ]] && { echo; return 0; }
         fi
     done
 
     port=$(awk '$1 == "ib_port" {print $NF}' <<< "${reg[PLIB]}")
     if [[ ! "$port" =~ ^0x[[:xdigit:]]{1,8}$ ]] || \
        [[ $((port)) -lt 1 || $((port)) -gt 255 ]]; then
-        cable_row "local_port$local_port" unavailable - - - - - -
+        cable_row "local_port$local_port" unavailable
         warn "local port $local_port: invalid IB port mapping"
         return 0
     fi
     port=$((port))
     idx="local_port=0x$(dtoh "$port"),pnat=0x1,page_select=0x3"
     if reg[PDDR]=$(get_reg PDDR "$idx") && [[ ! "${reg[PDDR]}" =~ -E- ]]; then
-        cable_record "$port" || return 0
+        cable_record "$port"
     else
-        cable_row "port$port" unavailable - - - - - -
+        cable_row "port$port" unavailable
         warn "port $port: ${reg[PDDR]}"
     fi
 )
@@ -241,19 +244,15 @@ get_cable() (
 show_cables() {
     local port status type vendor pn sn form length field value length_column
     local -A widths=([vendor]=0 [pn]=0 [sn]=0 [length]=0 [form]=0)
-    local kv_width=18
-    [[ -n "$out" ]] && kv_width=32
-    if [[ -z "$out" ]]; then
-        while IFS=$'\t' read -r port status type vendor pn sn form length; do
-            [[ "$status" == ok ]] || continue
-            [[ "$length" == unknown ]] && length="" || length+="m"
-            sn="($sn)"
-            for field in vendor pn sn length form; do
-                value=${!field}
-                (( ${#value} <= widths[$field] )) || widths[$field]=${#value}
-            done
-        done <<< "$_cables"
-    fi
+    while IFS=$'\t' read -r port status type vendor pn sn form length; do
+        [[ "$status" == ok ]] || continue
+        length+=${length:+m}
+        sn="($sn)"
+        for field in vendor pn sn length form; do
+            value=${!field}
+            (( ${#value} <= widths[$field] )) || widths[$field]=${#value}
+        done
+    done <<< "$_cables"
     while IFS=$'\t' read -r port status type vendor pn sn form length; do
         [[ -n "$port" ]] || continue
         if [[ -n "$out" ]]; then
@@ -266,14 +265,14 @@ show_cables() {
             out_kv "$port.cable.part_number" "$pn"
             out_kv "$port.cable.serial"      "$sn"
             out_kv "$port.cable.form_factor" "$form"
-            [[ "$length" == unknown ]] || out_kv "$port.cable.length_m" "$length"
+            out_kv "$port.cable.length_m" "$length"
         else
             if [[ "$port" == local_port* ]]; then
                 out_kv "local#${port#local_port} cable" "$status"
             elif [[ "$status" != ok ]]; then
                 out_kv "port#${port#port} cable" "$status"
             else
-                [[ "$length" == unknown ]] && length="" || length+="m"
+                length+=${length:+m}
                 length_column=""
                 [[ "${widths[length]}" == 0 ]] || \
                     printf -v length_column '%-*s ' "${widths[length]}" "$length"
@@ -290,7 +289,8 @@ show_cables() {
 # Module temperature worker, using the same sensor indexes as -T.
 get_module_temp() {
     local q=$1 data value
-    local idx="sensor_index=0x$(dtoh "$((q+63))")${add_idx:+,$add_idx}${add_tmp_idx:+,$add_tmp_idx}"
+    local idx="sensor_index=0x$(dtoh "$((q+63))")${add_idx:+,$add_idx}"
+    idx+=${add_tmp_idx:+,$add_tmp_idx}
     value=unknown
     if data=$(get_reg MTMP "$idx") && [[ ! "$data" =~ -E- ]]; then
         value=$(awk '$1 == "temperature" {print $NF}' <<< "$data")
@@ -319,7 +319,7 @@ Usage: ${0##*/} -d <device> [-T] [-C] [-o <$outputs>] [-S <description>]
   get info:
     -o <output_category>    Only display $outputs information
     -T                      get transceiver modules temperature
-    -C                      include cables in default or inventory output
+    -C                      get cable information
 
   set info:
     -S <description>        set device description ($MAX_ND_LEN bytes max.)
@@ -337,9 +337,8 @@ desc=""
 opt_S=0
 opt_T=0
 opt_C=0
-query_jobs=8
-query_ret=0
 opt_y=0
+query_ret=0
 optspec="hd:TCo:S:y"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
@@ -377,7 +376,7 @@ while getopts "$optspec" optchar; do
     esac
 done
 
-# drop -T for inventory/status outputs
+# drop -T for inventory/status outputs, -C for vitals/status outputs
 [[ "$out" =~ inventory|status ]] && opt_T=0
 [[ "$out" =~ vitals|status ]] && opt_C=0
 
@@ -530,40 +529,19 @@ done <<< "$_regs"
 [[ "$opt_C" == 1 ]] && {
     # MGIR is the local-port capacity; PMLP identifies mapped cable ports.
     ports=$(awk '$1 == "num_ports" {print $NF}' <<< "${reg[MGIR]}")
-    [[ "$ports" =~ ^0x[[:xdigit:]]{1,8}$ ]] || err "could not determine switch port count"
+    [[ "$ports" =~ ^0x[[:xdigit:]]{1,8}$ ]] || \
+        err "could not determine switch port count"
     ports=$((ports))
     [[ "$ports" -ge 1 && "$ports" -le 255 ]] || err "unsupported port count: $ports"
 
     # Batch workers to overlap MAD requests without launching one per port at once.
     _cables=$({ for (( p=1; p<=ports; p++ )); do
-                  (row=$(get_cable "$p"); printf '%s\n' "$row") &
-                  (( p % query_jobs == 0 )) && wait
+                  get_cable "$p" &
+                  (( p % MAX_JOBS == 0 )) && wait
               done
                wait; } | gather_progress "Reading cables" "$ports")
     _cables=$(sort -t $'\t' -k1,1V <<< "$_cables")
     [[ "$_cables" == *$'\tunavailable\t'* ]] && query_ret=1
-}
-
-
-## -- module temperatures ----------------------------------------------------
-
-[[ "$opt_T" == 1 ]] && {
-    nm=$(htod "$(awk '/num_of_modules_per_system / {printf $NF}' <<< "${reg[MGPIR]}")")
-    [[ "$nm" == 0 ]] && \
-        nm=$(htod "$(awk '/num_of_modules / {printf $NF}' <<< "${reg[MGPIR]}")")
-    [[ "$nm" -ge 1 && "$nm" -le 255 ]] || err "could not determine module count"
-
-    _qtps=$({ for (( q=1; q<=nm; q++ )); do
-                get_module_temp "$q" &
-                (( q % query_jobs == 0 )) && wait
-            done
-             wait; } | gather_progress "Module temperatures" "$nm")
-    declare -A qt=()
-    while read -r q t; do
-        qt[$q]=$t
-        [[ "$t" == unknown ]] && query_ret=1
-    done <<< "$_qtps"
-
 }
 
 
@@ -626,6 +604,20 @@ done <<< "$_regs"
     tp=$((_tp/8))
     mt=$((_mt/8))
     twl=$((_twl/8)) twh=$((_twh/8))
+
+    # optionally get modules temperature
+    [[ "$opt_T" == "1" ]] && {
+        [[ "$nm" -ge 1 && "$nm" -le 255 ]] || err "could not determine module count"
+        _qtps=$({ for q in $(seq 1 "$nm"); do
+                    get_module_temp "$q" &
+                    (( q % MAX_JOBS == 0 )) && wait
+                done
+                 wait; } | gather_progress "Module temperatures" "$nm")
+        while read -r q t; do
+            qt[q]=$t
+            [[ "$t" == unknown ]] && query_ret=1
+        done <<< "$_qtps"
+    }
 
     # fan speeds
     # first tachos bitmask (lsb)
@@ -724,7 +716,6 @@ case $out in
 
 
     vitals)
-        [[ "$opt_T" == 1 ]] && kv_width=24
         out_kv "uptime (sec)" "$s_uptime"
         [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
             for i in $psu_idxs; do
