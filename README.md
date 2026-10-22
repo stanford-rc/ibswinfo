@@ -1,6 +1,6 @@
 # ibswinfo
-Get information from unmanaged NVIDIA Infiniband switches.
 
+Get information from unmanaged NVIDIA Infiniband switches.
 
 ## Description
 
@@ -34,7 +34,6 @@ names like "SwitchX - NVIDIA Networking", sysadmins can now customize each
 switch by setting a descriptive name, using their model, physical location,
 cluster name, etc. and make each switch more easily identifiable.
 
-
 ## Installation
 
 ### Dependencies
@@ -55,8 +54,8 @@ The corresponding runtime libraries must also be installed.
 
 ### Build
 
-```sh
-make
+``` shell
+$ make
 ```
 
 This builds `ibsetnd` alongside `ibswinfo.sh`. Run `./ibswinfo.sh` directly
@@ -72,18 +71,21 @@ the NVIDIA Software Tools service, or by LID.
 * to use the MST virtual devices, you can start the `mst` service and populate
   entries in `/dev/mst` with:
 
-    ```
+    ``` shell
     # mst start
     # mst ib add
     ```
 
     Check that `/dev/mst` contains entries for your unmanaged switches (they
     should look like `/dev/mst/SW_*`), and you can run `ibswinfo` like this:
-    ```
+
+    ``` shell
     # ./ibswinfo.sh -d /dev/mst/SW_model_node-desc_lid-0x0001
     ```
+
     or without the `/dev/mst` prefix, using the virtual device name directly:
-    ```
+
+    ```shell
     # ./ibswinfo.sh -d SW_model_node-desc_lid-0x0001
     ```
 
@@ -91,16 +93,17 @@ the NVIDIA Software Tools service, or by LID.
   can get currently assigned LIDs with `ibswitches`, and run `ibswinfo`
   directly like this: `./ibswinfo.sh -d lid-16`
 
-
 ## Supported hardware
 
 `ibswinfo` has been tested with the following unmanaged Infiniband switches:
+
 * SB7790 Switch-IB (EDR) (_known limitation: QSFP module temperatures reported
   as 0_)
 * SB7890 Switch-IB2 (EDR)
 * QM8790 Quantum (HDR)
 
 Limited support is also available for the managed version of those switches:
+
 * SB7800 Switch-IB2 (EDR)
 * QM8700 Quantum (HDR)
 
@@ -108,7 +111,6 @@ Limited support is also available for the managed version of those switches:
 > If you find other working models, please feel free to open an
 [issue](https://github.com/stanford-rc/ibswinfo/issues/new) and
 we'll complete the list.
-
 
 ### Available information
 
@@ -119,7 +121,6 @@ we'll complete the list.
 * Power supply information (status, consumption, part and serial numbers)
 * Temperatures (including QSFP modules temp.)
 * Fan speeds and status
-
 
 ## Usage
 
@@ -132,37 +133,13 @@ Usage: ibswinfo.sh -d <device> [-T] [-C] [-o <inventory|vitals|status>] [-S <des
   get info:
     -o <output_category>    Only display inventory|vitals|status information
     -T                      get QSFP modules temperature
-    -C                      include cables in default or inventory output
+    -C                      get cable information
 
   set info:
     -S <description>        set device description (64 bytes max.)
     -y                      skip confirmation
 
 ```
-
-### Cable inventory
-
-Cable scans and module-temperature queries show a completed/total progress counter
-on stderr when it is a terminal.
-
-Use `./ibswinfo.sh -d <device> -o inventory -C` to include cables in aligned
-key/value inventory output,
-or `./ibswinfo.sh -d <device> -C` to append one summary line per cable to the
-default output: `port#1 cable | Mellanox MFS1S00-H020V (MT2219DC02712) 20m QSFP28 active`.
-Fields are aligned to the longest value in the collected cables.
-Both report type, vendor, part number, serial, form factor and length per IB port.
-Unplugged ports are marked explicitly. Unknown lengths are omitted; other missing
-information is shown as unknown.
-Queries run in parallel batches of eight, with results sorted by IB port.
-Ports that cannot be read are marked unavailable and cause a nonzero exit status.
-
-### Module temperatures
-
-Use `./ibswinfo.sh -d <device> -o vitals -T` to include module temperatures in
-key/value vitals output. `-T` also adds them to default output and can be combined
-with `-C`. Modules are numbered separately from IB ports:
-one physical module can serve more than one port. Unavailable readings are shown
-as unknown and cause a nonzero exit status.
 
 ### Default output
 
@@ -216,6 +193,25 @@ fan#9 (rpm)        | 5471
 -------------------------------------------------
 ```
 
+### Cable inventory
+
+Add `-C` to append cable information to the default output. For example (excerpt,
+with serial numbers redacted):
+
+```none
+# ./ibswinfo.sh -d <device> -C
+...
+-------------------------------------------------
+port#1 cable       | Mellanox MFS1200-E003 (<redacted>) 3m  QSFP+ active
+port#7 cable       | Mellanox MFA1A00-E010 (<redacted>) 10m QSFP+ active
+[...]
+port#17 cable      | Mellanox 0684G2       (<redacted>) 10m QSFP+ active
+-------------------------------------------------
+```
+
+Ports use IB numbering. Unknown cable lengths are omitted, and unplugged ports
+are marked `unplugged`. Use `-o inventory -C` for key/value output.
+
 ### Targeted outputs
 
 Specific information can be targeted by choosing the appropriate output type:
@@ -227,7 +223,7 @@ Targeted outputs are designed to be parsed for input to other tools.
 
 For instance, to only get hardware vitals, including QSFP temperatures:
 
-```
+``` shell
 # ./ibswinfo -d <device> -o vitals -T
 uptime (sec)       : 16982312
 psu0.power (W)     : 92
@@ -282,7 +278,7 @@ fan#8.speed (rpm)  : 5421
 
 Or, to only get fans and power supplies' status:
 
-```
+``` shell
 # ./ibswinfo -d <device> -o status
 psu0.status        : OK
 psu0.dc            : OK
@@ -293,15 +289,16 @@ psu1.fan           : OK
 fans               : OK
 ```
 
-
 ### Setting switch names
-*requires the built `ibsetnd` helper and libibmad/libibumad runtime libraries*
+
+_requires the built `ibsetnd` helper and libibmad/libibumad runtime libraries_
 
 Unmanaged switches' node descriptions can be customized, for easier management
 and better switch identification.
 
-To update a switch's name to `<new_node description>`"
-```
+To update a switch's name to `<new_node description>`:
+
+``` shell
 # ./ibswinfo -d <device> -S <new_node_description>
 Device: <device>
   Current node description: <old_node_description>
@@ -317,7 +314,8 @@ help solve that problem and allow better identification of switches in the
 datacenter.
 
 Before:
-```
+
+``` shell
 # ibswitches
 Switch  : 0xXXXXXXXXXXXXXXXa ports 37 "SwitchX - Mellanox Technologies" base port 0 lid 1 lmc 0
 Switch  : 0xXXXXXXXXXXXXXXXb ports 37 "SwitchX - Mellanox Technologies" base port 0 lid 2 lmc 0
@@ -326,7 +324,8 @@ Switch  : 0xXXXXXXXXXXXXXXXd ports 37 "SwitchX - Mellanox Technologies" base por
 ```
 
 After:
-```
+
+``` shell
 # ibswitches
 Switch  : 0xXXXXXXXXXXXXXXXa ports 37 "switch1 in rack1 U1" base port 0 lid 1 lmc 0
 Switch  : 0xXXXXXXXXXXXXXXXb ports 37 "switch2 in rack1 U3" base port 0 lid 2 lmc 0
