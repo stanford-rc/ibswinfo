@@ -124,7 +124,7 @@ we'll complete the list.
 ## Usage
 
 ```none
-Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>] [-S <description>]
+Usage: ibswinfo.sh -d <device> [-T] [-C] [-o <inventory|vitals|status>] [-S <description>]
 
   global options:
     -d <device>             MST device path ("mst status" shows devices list)
@@ -132,12 +132,37 @@ Usage: ibswinfo.sh -d <device> [-T] [-o <inventory|vitals|status>] [-S <descript
   get info:
     -o <output_category>    Only display inventory|vitals|status information
     -T                      get QSFP modules temperature
+    -C                      include cables in default or inventory output
 
   set info:
     -S <description>        set device description (64 bytes max.)
     -y                      skip confirmation
 
 ```
+
+### Cable inventory
+
+Cable scans and module-temperature queries show a completed/total progress counter
+on stderr when it is a terminal.
+
+Use `./ibswinfo.sh -d <device> -o inventory -C` to include cables in aligned
+key/value inventory output,
+or `./ibswinfo.sh -d <device> -C` to append one summary line per cable to the
+default output: `port#1 cable | Mellanox MFS1S00-H020V (MT2219DC02712) 20m QSFP28 active`.
+Fields are aligned to the longest value in the collected cables.
+Both report type, vendor, part number, serial, form factor and length per IB port.
+Unplugged ports are marked explicitly. Unknown lengths are omitted; other missing
+information is shown as unknown.
+Queries run in parallel batches of eight, with results sorted by IB port.
+Ports that cannot be read are marked unavailable and cause a nonzero exit status.
+
+### Module temperatures
+
+Use `./ibswinfo.sh -d <device> -o vitals -T` to include module temperatures in
+key/value vitals output. `-T` also adds them to default output and can be combined
+with `-C`. Modules are numbered separately from IB ports:
+one physical module can serve more than one port. Unavailable readings are shown
+as unknown and cause a nonzero exit status.
 
 ### Default output
 
