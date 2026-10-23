@@ -24,15 +24,17 @@ notifications and alerts when problems occur.
 `ibswinfo` helps solve this problem, by leveraging [NVIDIA Firmware Tools
 (MFT)](https://network.nvidia.com/products/adapter-software/firmware-tools/) to
 allow sysadmins to get more information about their unmanaged Infiniband
-switches. It can be used to gather hardware vitals such as fan speeds or
-temperatures, and monitor the switches more closely.
+switches, and monitor them more closely. It can be used to:
 
-As of version [0.6](https://github.com/stanford-rc/ibswinfo/releases/tag/0.6),
-`ibswinfo` also allows setting a user-friendly name (node description) for
-unmanaged switches. No more endless lists of identical and unhelpful switch
-names like "SwitchX - NVIDIA Networking", sysadmins can now customize each
-switch by setting a descriptive name, using their model, physical location,
-cluster name, etc. and make each switch more easily identifiable.
+* gather hardware vitals, such as fan speeds, temperatures or power supply
+  status, and report fans that are out of range,
+* get per-port traffic counters, as cumulative totals or current rates,
+* list the cables and transceivers plugged in each port,
+* set a user-friendly name (node description) for each switch: no more endless
+  lists of identical and unhelpful switch names like "SwitchX - NVIDIA
+  Networking", sysadmins can customize each switch with a descriptive name
+  (model, physical location, cluster name, etc.) and make it more easily
+  identifiable.
 
 ## Installation
 
