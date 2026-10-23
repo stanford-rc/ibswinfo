@@ -703,16 +703,22 @@ while read -r r v; do
 done <<< "$_regs"
 
 
+## -- local ports ------------------------------------------------------------
+
+# MGIR is the local-port capacity; PMLP identifies mapped ports.
+[[ "$opt_C" == 1 || "$opt_P" == 1 ]] && {
+    ports=$(awk '$1 == "num_ports" {print $NF}' <<< "${reg[MGIR]}")
+    [[ "$ports" =~ ^0x[[:xdigit:]]{1,8}$ ]] || \
+        err "could not determine local-port capacity"
+    ports=$((ports))
+    [[ "$ports" -ge 1 && "$ports" -le 255 ]] || \
+        err "unsupported local-port capacity: $ports"
+}
+
+
 ## -- cable inventory --------------------------------------------------------
 
 [[ "$opt_C" == 1 ]] && {
-    # MGIR is the local-port capacity; PMLP identifies mapped cable ports.
-    ports=$(awk '$1 == "num_ports" {print $NF}' <<< "${reg[MGIR]}")
-    [[ "$ports" =~ ^0x[[:xdigit:]]{1,8}$ ]] || \
-        err "could not determine switch port count"
-    ports=$((ports))
-    [[ "$ports" -ge 1 && "$ports" -le 255 ]] || err "unsupported port count: $ports"
-
     # Batch workers to overlap MAD requests without launching one per port at once.
     _cables=$({ for (( p=1; p<=ports; p++ )); do
                   get_cable "$p" &
@@ -727,10 +733,6 @@ done <<< "$_regs"
 ## -- port counters ----------------------------------------------------------
 
 [[ "$opt_P" == 1 ]] && {
-    ports=$(awk '$1 == "num_ports" {print $NF}' <<< "${reg[MGIR]}")
-    [[ "$ports" =~ ^0x[[:xdigit:]]{1,8}$ ]] || err "could not determine local-port capacity"
-    ports=$((ports))
-    [[ "$ports" -ge 1 && "$ports" -le 255 ]] || err "unsupported local-port capacity: $ports"
     _counters=$({ for (( p=1; p<=ports; p++ )); do
                     (
                         if row=$(get_port_counters "$p"); then
