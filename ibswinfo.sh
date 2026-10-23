@@ -307,11 +307,152 @@ get_module_temp() {
 }
 
 
+# Convert IB data units (four octets) without overflowing Bash's signed integer
+# or rounding through awk's floating point. Only single digits enter arithmetic.
+data_to_bytes() {
+    local value=$1 result="" carry=0 i digit
+    for (( i=${#value}-1; i>=0; i-- )); do
+        digit=$(( ${value:i:1} * 4 + carry ))
+        result="$((digit % 10))$result"
+        carry=$((digit / 10))
+    done
+    printf '%s%s\n' "${carry/#0/}" "$result"
+}
+
+# Subtract decimal strings before converting the small delta to a rate.
+decimal_delta() {
+    local a=$1 b=$2 result="" borrow=0 i digit
+    local LC_ALL=C
+    while (( ${#b} < ${#a} )); do b="0$b"; done
+    (( ${#a} == ${#b} )) && [[ "$a" > "$b" || "$a" == "$b" ]] || return 1
+    for (( i=${#a}-1; i>=0; i-- )); do
+        digit=$(( ${a:i:1} - ${b:i:1} - borrow ))
+        borrow=0
+        (( digit >= 0 )) || { digit=$((digit+10)); borrow=1; }
+        result="$digit$result"
+    done
+    result=${result#"${result%%[!0]*}"}
+    printf '%s\n' "${result:-0}"
+}
+
+counter_rates() {
+    local first=$1 second=$2 elapsed=$3 port status i delta unit
+    local -a before after rates
+    read -r port status before[0] before[1] before[2] before[3] <<< "$first"
+    read -r port status after[0] after[1] after[2] after[3] <<< "$second"
+    for i in 0 1 2 3; do
+        delta=$(decimal_delta "${after[i]}" "${before[i]}") || return 1
+        [[ $i -lt 2 ]] && unit=B/s || unit=pkts/s
+        rates[i]=$(LC_ALL=C awk -v d="$delta" -v ns="$elapsed" -v u="$unit" 'BEGIN {
+            split("k M G T P E Z", prefix, " "); v=d*1e9/ns; n=0
+            while (v>=999.95 && n<7) {v/=1000; n++}
+            printf "%.1f %*s", v, length(u)+1, (n ? prefix[n] : "") u
+        }')
+    done
+    printf '%s\tok\t%s\t%s\t%s\t%s\n' "$port" "${rates[@]}"
+}
+
+# Read just the four extended traffic counters as decimal strings.
+counter_record() {
+    local port=$1 data=$2 field value
+    local LC_ALL=C
+    local -A values=()
+    [[ "$data" == *'# Port extended counters:'* ]] || return 1
+    while IFS=: read -r field value; do
+        case $field in
+            PortXmitData|PortRcvData|PortXmitPkts|PortRcvPkts)
+                value=${value//./}
+                value=${value//[[:space:]]/}
+                [[ "$value" =~ ^(0|[1-9][0-9]{0,19})$ ]] || return 1
+                if [[ ${#value} == 20 && "$value" > 18446744073709551615 ]]; then
+                    return 1
+                fi
+                [[ -z "${values[$field]+x}" ]] || return 1
+                values[$field]=$value
+                ;;
+        esac
+    done <<< "$data"
+    [[ ${#values[@]} == 4 ]] || return 1
+    printf 'port%s\tok\t%s\t%s\t%s\t%s\n' "$port" \
+        "$(data_to_bytes "${values[PortXmitData]}")" \
+        "$(data_to_bytes "${values[PortRcvData]}")" \
+        "${values[PortXmitPkts]}" "${values[PortRcvPkts]}"
+}
+
+# A mapped local port may have a different IB port number, or be unmapped.
+get_port_counters() {
+    local p=$1 idx data width port first second start end elapsed
+    idx="local_port=0x$(dtoh "$p")"
+    data=$(get_reg PMLP "$idx") && [[ "$data" != *-E-* ]] || {
+        warn "local port $p: PMLP unavailable: $data"; return 1;
+    }
+    width=$(awk '$1 == "width" {print $NF}' <<< "$data")
+    [[ "$width" =~ ^0x[[:xdigit:]]{1,8}$ ]] || return 1
+    [[ $((width)) == 0 ]] && return 0
+    data=$(get_reg PLIB "$idx") && [[ "$data" != *-E-* ]] || {
+        warn "local port $p: PLIB unavailable: $data"; return 1;
+    }
+    port=$(awk '$1 == "ib_port" {print $NF}' <<< "$data")
+    [[ "$port" =~ ^0x[[:xdigit:]]{1,8}$ ]] || return 1
+    port=$((port))
+    [[ "$port" -ge 1 && "$port" -le 254 ]] || return 1
+    start=$(date +%s%N)
+    if data=$(LC_ALL=C perfquery ${counter_route[@]+"${counter_route[@]}"} \
+                               -x "$counter_lid" "$port" 2>&1) && \
+       first=$(counter_record "$port" "$data"); then
+        if [[ "$out" == vitals ]]; then
+            printf '%s\n' "$first"
+            return 0
+        fi
+        end=$(date +%s%N)
+        start=$(((start+end)/2))
+        sleep 1
+        end=$(date +%s%N)
+        if data=$(LC_ALL=C perfquery ${counter_route[@]+"${counter_route[@]}"} \
+                                   -x "$counter_lid" "$port" 2>&1) && \
+           second=$(counter_record "$port" "$data"); then
+            elapsed=$(((end+$(date +%s%N))/2-start))
+            if (( elapsed > 0 )) && counter_rates "$first" "$second" "$elapsed"; then
+                return 0
+            fi
+            data="counter decreased or invalid sampling interval"
+        fi
+    fi
+    warn "IB port $port: extended counters unavailable: ${data##*$'\n'}"
+    printf 'port%s\tunavailable\t-\t-\t-\t-\n' "$port"
+}
+
+show_counters() {
+    local port status tx rx txp rxp label
+    while IFS=$'\t' read -r port status tx rx txp rxp; do
+        [[ -n "$port" ]] || continue
+        label="port#${port#port} traffic"
+        [[ "$port" != local_port* ]] || label="local port#${port#local_port}"
+        if [[ -n "$out" ]]; then
+            if [[ "$status" != ok ]]; then
+                out_kv "$port.status" "$status"
+            else
+                out_kv "$port.tx_bytes" "$tx"
+                out_kv "$port.rx_bytes" "$rx"
+                out_kv "$port.tx_packets" "$txp"
+                out_kv "$port.rx_packets" "$rxp"
+            fi
+        elif [[ "$status" != ok ]]; then
+            out_kv "$label" "$status"
+        else
+            tx=$(printf 'TX %11s %14s' "$tx" "$txp")
+            rx=$(printf 'RX %11s %14s' "$rx" "$rxp")
+            out_kv "$label" "$tx"
+            out_kv ""       "$rx"
+        fi
+    done <<< "$_counters"
+}
+
 ## -- arg handling ------------------------------------------------------------
 
 usage() {
     cat << EOU
-Usage: ${0##*/} -d <device> [-T] [-C] [-o <$outputs>] [-S <description>]
+Usage: ${0##*/} -d <device> [-T] [-C] [-P] [-o <$outputs>] [-S <description>]
 
   global options:
     -d <device>             MST device path ("mst status" shows devices list)
@@ -320,6 +461,7 @@ Usage: ${0##*/} -d <device> [-T] [-C] [-o <$outputs>] [-S <description>]
     -o <output_category>    Only display $outputs information
     -T                      get transceiver modules temperature
     -C                      get cable information
+    -P                      get port traffic counters
 
   set info:
     -S <description>        set device description ($MAX_ND_LEN bytes max.)
@@ -337,9 +479,10 @@ desc=""
 opt_S=0
 opt_T=0
 opt_C=0
+opt_P=0
 opt_y=0
 query_ret=0
-optspec="hd:TCo:S:y"
+optspec="hd:TCPo:S:y"
 while getopts "$optspec" optchar; do
     case "${optchar}" in
         h|\?)
@@ -354,6 +497,9 @@ while getopts "$optspec" optchar; do
             ;;
         C)
             opt_C=1
+            ;;
+        P)
+            opt_P=1
             ;;
         o)
             out=${OPTARG}
@@ -376,12 +522,13 @@ while getopts "$optspec" optchar; do
     esac
 done
 
-# drop -T for inventory/status outputs, -C for vitals/status outputs
-[[ "$out" =~ inventory|status ]] && opt_T=0
+# drop -T/-P for inventory/status outputs, -C for vitals/status outputs
+[[ "$out" =~ inventory|status ]] && opt_T=0 opt_P=0
 [[ "$out" =~ vitals|status ]] && opt_C=0
 
 # check conflicting options
-[[ "$opt_S" == 1 ]] && [[ -n "$out" || "$opt_T" -eq 1 || "$opt_C" -eq 1 ]] && {
+[[ "$opt_S" == 1 ]] && \
+    [[ -n "$out" || "$opt_T" -eq 1 || "$opt_C" -eq 1 || "$opt_P" -eq 1 ]] && {
     err "conflicting options, can't get and set info at the same time"
 }
 
@@ -439,6 +586,7 @@ tools[paste]="coreutils"
 tools[mst]="MFT ($MFT_URL)"
 tools[mlxreg]="MFT ($MFT_URL)"
 tools[smpquery]="infiniband-diags"
+[[ "$opt_P" == 1 ]] && tools[perfquery]="infiniband-diags"
 for t in "${!tools[@]}"; do
     type "$t" &>/dev/null || \
         err "$t not found${tools[$t]:+, please install ${tools[$t]}}"
@@ -461,6 +609,37 @@ mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
     [[ ${dev:0:8} == '/dev/mst' ]] && dev=${dev/\/dev\/mst\//}
     [[ ${dev:0:3} == "SW_" ]] || err "$dev doesn't look like a switch device name"
     [[ -r /dev/mst/$dev ]] || err "$dev not found in /dev/mst, is mst started?"
+}
+
+
+# Preserve the optional MFT ,CA,port route when calling perfquery.
+[[ "$opt_P" == 1 ]] && {
+    counter_target=${dev%%,*}
+    counter_target=${counter_target#SW_}
+    counter_target=${counter_target#*_lid-}
+    counter_target=${counter_target#lid-}
+    [[ "$counter_target" =~ ^(0x[[:xdigit:]]{1,4}|[0-9]{1,5})$ ]] || \
+        err "counters require lid-N or SW_..._lid-N, optionally with ,CA,port"
+    if [[ "$counter_target" == 0x* ]]; then
+        counter_lid=$((counter_target))
+    else
+        counter_lid=$((10#$counter_target))
+    fi
+    [[ "$counter_lid" -ge 1 && "$counter_lid" -le 49151 ]] || err "invalid counter LID"
+    counter_route=()
+    if [[ "$dev" == *,* ]]; then
+        route=${dev#*,}
+        ca=${route%%,*}
+        [[ "$ca" =~ ^[a-zA-Z0-9_.-]+$ ]] || err "invalid counter CA"
+        counter_route+=(-C "$ca")
+        if [[ "$route" == *,* ]]; then
+            ca_port=${route#*,}
+            [[ "$ca_port" =~ ^[0-9]{1,3}$ ]] || err "invalid counter CA port"
+            ca_port=$((10#$ca_port))
+            [[ "$ca_port" -ge 1 && "$ca_port" -le 255 ]] || err "invalid counter CA port"
+            counter_route+=(-P "$ca_port")
+        fi
+    fi
 }
 
 
@@ -542,6 +721,33 @@ done <<< "$_regs"
                wait; } | gather_progress "Reading cables" "$ports")
     _cables=$(sort -t $'\t' -k1,1V <<< "$_cables")
     [[ "$_cables" == *$'\tunavailable\t'* ]] && query_ret=1
+}
+
+
+## -- port counters ----------------------------------------------------------
+
+[[ "$opt_P" == 1 ]] && {
+    ports=$(awk '$1 == "num_ports" {print $NF}' <<< "${reg[MGIR]}")
+    [[ "$ports" =~ ^0x[[:xdigit:]]{1,8}$ ]] || err "could not determine local-port capacity"
+    ports=$((ports))
+    [[ "$ports" -ge 1 && "$ports" -le 255 ]] || err "unsupported local-port capacity: $ports"
+    _counters=$({ for (( p=1; p<=ports; p++ )); do
+                    (
+                        if row=$(get_port_counters "$p"); then
+                            printf '%s\n' "$row"
+                        else
+                            warn "local port $p: counters unavailable"
+                            printf 'local_port%s\tunavailable\t-\t-\t-\t-\n' "$p"
+                        fi
+                    ) &
+                    (( p % MAX_JOBS == 0 )) && wait
+                done
+                  wait; } | gather_progress "Counters (local ports)" "$ports")
+    [[ -n "$_counters" ]] || { warn "no mapped counter ports found"; query_ret=1; }
+    _counters=$(sort -t $'\t' -k1,1V <<< "$_counters")
+    duplicates=$(awk -F '\t' 'seen[$1]++ {print $1}' <<< "$_counters")
+    [[ -z "$duplicates" ]] || err "duplicate counter port mappings: $duplicates"
+    [[ "$_counters" != *$'\tunavailable\t'* ]] || query_ret=1
 }
 
 
@@ -676,7 +882,7 @@ for i in $psu_idxs; do
 done
 
 
-# TODO consider interfaces counters (tx/rx) in PPCNT
+# Traffic counters use perfquery: PPCNT's extended group can return all zeros.
 
 
 ## -- output ------------------------------------------------------------------
@@ -732,6 +938,7 @@ case $out in
         for t in ${at_idxs:-}; do
             out_kv "fan#$t.speed (rpm)" "${fs[$t]}"
         done
+        [[ "$opt_P" == 1 && -n "$_counters" ]] && show_counters
         exit "$query_ret"
         ;;
 esac
@@ -784,6 +991,10 @@ sep
 
 [[ "$opt_C" == 1 ]] && {
     show_cables
+    sep
+}
+[[ "$opt_P" == 1 && -n "$_counters" ]] && {
+    show_counters
     sep
 }
 exit "$query_ret"
