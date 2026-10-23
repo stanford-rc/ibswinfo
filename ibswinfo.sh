@@ -113,6 +113,13 @@ htos() {
     printf "%b\n" "$s" | tr -d \\0
 }
 
+# dotted version to a comparable number: 4.18.0 -> 4018000
+vernum() {
+    local a b c
+    IFS=. read -r a b c <<< "$1"
+    echo $((10#$a*1000000 + 10#$b*1000 + 10#${c:-0}))
+}
+
 # seconds to d-h:m:s
 sec_to_dhms() {
     local s=$1
@@ -349,8 +356,8 @@ decimal_delta() {
 counter_rates() {
     local first=$1 second=$2 elapsed=$3 port status i delta unit
     local -a before after rates
-    read -r port status before[0] before[1] before[2] before[3] <<< "$first"
-    read -r port status after[0] after[1] after[2] after[3] <<< "$second"
+    read -r port status 'before[0]' 'before[1]' 'before[2]' 'before[3]' <<< "$first"
+    read -r port status 'after[0]' 'after[1]' 'after[2]' 'after[3]' <<< "$second"
     for i in 0 1 2 3; do
         delta=$(decimal_delta "${after[i]}" "${before[i]}") || return 1
         [[ $i -lt 2 ]] && unit=B/s || unit=pps
@@ -598,8 +605,7 @@ tools[sed]=""
 tools[tr]="coreutils"
 tools[paste]="coreutils"
 tools[mst]="MFT ($MFT_URL)"
-tools[mlxreg]="MFT ($MFT_URL)"
-tools[smpquery]="infiniband-diags"
+tools[mlxreg_ext]="MFT ($MFT_URL)"
 [[ "$opt_P" == 1 ]] && tools[perfquery]="infiniband-diags"
 for t in "${!tools[@]}"; do
     type "$t" &>/dev/null || \
@@ -607,13 +613,15 @@ for t in "${!tools[@]}"; do
 done
 
 # MFT version
-mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"      # minimum required MFT version
 mft_max="4.37.0"      # highest MFT version tested
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
-[[ ${mft_cur//./} -lt ${mft_req//./} ]] && \
+[[ "$mft_cur" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
+    err "could not determine MFT version (got '$mft_cur')"
+mft_num=$(vernum "$mft_cur")
+[[ $mft_num -lt $(vernum "$mft_req") ]] && \
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
-[[ ${mft_cur//./} -gt ${mft_max//./} ]] && \
+[[ $mft_num -gt $(vernum "$mft_max") ]] && \
     warn "Not tested with MFT version $mft_cur, YMMV"
 
 
@@ -671,7 +679,6 @@ mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 # MSCI  -  ...? CPLD information
 # MSPS  -  Misc System Power Supply Register
 # MTMP  -  Management Temperature
-# MTCAP -  Management Temperature Capabilities
 # MFCR  -  Management Fan Control Register
 # FORE  -  Fan Out of Range Event Register
 # SPZR  -  ...? node description
@@ -688,28 +695,27 @@ case $out in
         reg_names="MGIR MSGI MSCI SPZR MSPS"
         ;;
     status)
-        reg_names="MGIR MGPIR MSPS MTMP MTCAP MFCR FORE"
+        reg_names="MGIR MGPIR MSPS MTMP MFCR FORE"
         ;;
     vitals)
-        reg_names="MGIR MGPIR MSPS MTMP MTCAP MFCR"
+        reg_names="MGIR MGPIR MSPS MTMP MFCR"
         ;;
     *)
-        reg_names="MGIR MGPIR MSGI MSCI MSPS SPZR MTMP MTCAP MFCR FORE"
+        reg_names="MGIR MGPIR MSGI MSCI MSPS SPZR MTMP MFCR FORE"
         ;;
 esac
 # some registers need an index
 # and that depends on the version of MFT we're using
 add_idx="" add_tmp_idx=""
-[[ ${mft_cur//./} -gt 4150 ]] && add_idx="slot_index=0x0"
-[[ ${mft_cur//./} -gt 4190 && \
-   ${mft_cur//./} -lt 4210 ]] && rid[MGIR]="module_base=0x0"
-[[ ${mft_cur//./} -ge 4230 ]] && rid[SPZR]="router_entity=0x0,"
-[[ ${mft_cur//./} -ge 4301 ]] && add_tmp_idx="asic_index=0x0,ig=0x0,i=0x0,"
+[[ $mft_num -gt $(vernum 4.15.0) ]] && add_idx="slot_index=0x0"
+[[ $mft_num -gt $(vernum 4.19.0) && \
+   $mft_num -lt $(vernum 4.21.0) ]] && rid[MGIR]="module_base=0x0"
+[[ $mft_num -ge $(vernum 4.23.0) ]] && rid[SPZR]="router_entity=0x0,"
+[[ $mft_num -ge $(vernum 4.30.1) ]] && add_tmp_idx="asic_index=0x0,ig=0x0,i=0x0,"
 rid[MGPIR]+="slot_index=0x0"
 rid[MSCI]+="index=0x0" # handle main CPLD only
 rid[SPZR]+="swid=0x0"
 rid[MTMP]+="sensor_index=0x0${add_idx:+,$add_idx}${add_tmp_idx:+,$add_tmp_idx}"
-rid[MTCAP]="$add_idx"
 # get registers: workers tag each output line with the register name, so that
 # the short writes can't be torn in the shared pipe (whole dumps can exceed
 # PIPE_BUF), and report their exit status on a trailing line
@@ -874,12 +880,14 @@ done
     }
 
     # fan speeds
+    # bitmask widths come from the register definition
+    mfcr_def=$(show_reg MFCR)
     # first tachos bitmask (lsb)
-    atlsb_bmsz=$(awk '/^tacho_active / {printf $(NF-2)}' < <(show_reg MFCR))
+    atlsb_bmsz=$(awk '/^tacho_active / {printf $(NF-2)}' <<< "$mfcr_def")
     atlsb_bmsk=$(htob "$(awk '/^tacho_active / {printf $NF}' \
                          <<< "${reg[MFCR]}")" "$atlsb_bmsz")
     # second tachos bitmask (msb)
-    atmsb_bmsz=$(awk '/^tacho_active_msb / {printf $(NF-2)}' < <(show_reg MFCR))
+    atmsb_bmsz=$(awk '/^tacho_active_msb / {printf $(NF-2)}' <<< "$mfcr_def")
     atmsb_bmsk=$(htob "$(awk '/^tacho_active_msb / {printf $NF}' \
                          <<< "${reg[MFCR]}")" "$atmsb_bmsz")
     at_bmsz=$((atlsb_bmsz+atmsb_bmsz))

@@ -46,7 +46,7 @@ switches, and monitor them more closely. It can be used to:
     \>= 4.18.0 for information queries. Setting a switch name does not require MFT.
 
 * [`infiniband-diags`](https://github.com/linux-rdma/rdma-core)
-* `bash`, `coreutils`, `awk` and `sed`
+* `bash` (4.2 or later), `coreutils`, `awk` and `sed`
 
 For setting switch names, build the `ibsetnd` helper with a C compiler, `make`,
 and the libibmad/libibumad development packages from rdma-core (or OFED).
@@ -123,6 +123,7 @@ we'll complete the list.
 * Power supply information (status, consumption, part and serial numbers)
 * Temperatures (including QSFP modules temp.)
 * Fan speeds and status (including out of range readings)
+* Cable inventory (vendor, part number, serial number, length and type)
 * Port traffic counters (cumulative bytes/packets totals, or current rates)
 
 ## Usage
@@ -135,7 +136,7 @@ Usage: ibswinfo.sh -d <device> [-T] [-C] [-P] [-o <inventory|vitals|status>] [-S
                             or LID (eg. "-d lid-44")
   get info:
     -o <output_category>    Only display inventory|vitals|status information
-    -T                      get QSFP modules temperature
+    -T                      get transceiver modules temperature
     -C                      get cable information
     -P                      get port traffic counters
 
@@ -159,7 +160,8 @@ part number        | MQM8790-HS2F
 serial number      | <redacted>
 product name       | Jaguar Unmng IB 200
 revision           | AC
-ports              | 40
+modules            | 40
+max ports          | 40
 PSID               | MT_0000000063
 GUID               | <redacted>
 firmware version   | 27.2000.1886
@@ -226,7 +228,7 @@ With `-o vitals`, `-P` adds the cumulative TX/RX bytes and packets totals for
 each IB port to the hardware vitals:
 
 ```
-# ./ibswinfo -d lid-14 -o vitals -P
+# ./ibswinfo.sh -d lid-14 -o vitals -P
 [...]
 fan#8.speed (rpm)  : 5421
 port1.tx_bytes     : 3299135337352
@@ -243,7 +245,7 @@ port2.rx_packets   : 3243159117
 In the default output, `-P` appends the current traffic rates instead:
 
 ```
-# ./ibswinfo -d lid-14 -P
+# ./ibswinfo.sh -d lid-14 -P
 [...]
 -------------------------------------------------
 port#1 traffic     | TX  27.6  B/s   1.0  pps
@@ -277,25 +279,25 @@ Targeted outputs are designed to be parsed for input to other tools.
 For instance, to only get hardware vitals, including QSFP temperatures:
 
 ``` shell
-# ./ibswinfo -d <device> -o vitals -T
+# ./ibswinfo.sh -d <device> -o vitals -T
 uptime (sec)       : 16982312
 psu0.power (W)     : 92
 psu1.power (W)     : 102
 cur.temp (C)       : 73
 max.temp (C)       : 80
-QSFP#01.temp (C)   : 44
-QSFP#02.temp (C)   : 43
-QSFP#03.temp (C)   : 43
-QSFP#04.temp (C)   : 47
-QSFP#05.temp (C)   : 42
-QSFP#06.temp (C)   : 46
-QSFP#07.temp (C)   : 44
+module#01.temp (C)   : 44
+module#02.temp (C)   : 43
+module#03.temp (C)   : 43
+module#04.temp (C)   : 47
+module#05.temp (C)   : 42
+module#06.temp (C)   : 46
+module#07.temp (C)   : 44
 [...]
-QSFP#32.temp (C)   : 45
-QSFP#33.temp (C)   : 39
-QSFP#34.temp (C)   : 44
-QSFP#35.temp (C)   : 37
-QSFP#36.temp (C)   : 39
+module#32.temp (C)   : 45
+module#33.temp (C)   : 39
+module#34.temp (C)   : 44
+module#35.temp (C)   : 37
+module#36.temp (C)   : 39
 fan#1.speed (rpm)  : 6355
 fan#2.speed (rpm)  : 5421
 fan#3.speed (rpm)  : 6570
@@ -309,7 +311,7 @@ fan#8.speed (rpm)  : 5421
 Or, to only get fans and power supplies' status:
 
 ``` shell
-# ./ibswinfo -d <device> -o status
+# ./ibswinfo.sh -d <device> -o status
 psu0.status        : OK
 psu0.dc            : OK
 psu0.fan           : OK
@@ -329,7 +331,7 @@ and better switch identification.
 To update a switch's name to `<new_node description>`:
 
 ``` shell
-# ./ibswinfo -d <device> -S <new_node_description>
+# ./ibswinfo.sh -d <device> -S <new_node_description>
 Device: <device>
   Current node description: <old_node_description>
   Set node description to : <new_node_description>
