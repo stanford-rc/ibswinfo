@@ -120,7 +120,7 @@ we'll complete the list.
 * Uptime
 * Power supply information (status, consumption, part and serial numbers)
 * Temperatures (including QSFP modules temp.)
-* Fan speeds and status
+* Fan speeds and status (including out of range readings)
 * Port traffic counters (cumulative bytes/packets totals, or current rates)
 
 ## Usage

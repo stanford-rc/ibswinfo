@@ -801,8 +801,22 @@ done <<< "$_regs"
     # fan under/over limit alerts
     fu=$(htod "$(awk '/^fan_under_limit / {printf $NF}' <<< "${reg[FORE]}")")
     fo=$(htod "$(awk '/^fan_over_limit / {printf $NF}'  <<< "${reg[FORE]}")")
-    # TODO break down FORE bitmasks to get alerted fan id
+    # extension bitmasks (msb) for the tachos beyond the first bitmask width
+    f_bmsz=$(awk '/^fan_under_limit / {printf $(NF-2)}' < <(show_reg FORE))
+    fu_msb=$(htod "$(awk '/^fan_under_limit_msb / {printf $NF}' <<< "${reg[FORE]}")")
+    fo_msb=$(htod "$(awk '/^fan_over_limit_msb / {printf $NF}' <<< "${reg[FORE]}")")
+    fu=$((fu | (fu_msb << f_bmsz)))
+    fo=$((fo | (fo_msb << f_bmsz)))
     [[ $((fo+fu)) == 0 ]] && fa="OK" || fa="ERROR"
+    # out of range tachos, same ids as fan speeds
+    fst=() fal=""
+    for (( t=0; (fu|fo) >> t; t++ )); do
+        (( (fu >> t) & 1 )) && fst[t]="under limit"
+        (( (fo >> t) & 1 )) && fst[t]+="${fst[t]:+ and }over limit"
+    done
+    for t in ${fst[@]+"${!fst[@]}"}; do
+        fal+="${fal:+, }fan#$t ${fst[t]}"
+    done
 }
 
 # vitals and status
@@ -934,6 +948,9 @@ case $out in
             done
         }
         out_kv "fans" "$fa"
+        for t in ${fst[@]+"${!fst[@]}"}; do
+            out_kv "fan#$t.status" "${fst[t]}"
+        done
         exit 0
         ;;
 
@@ -1000,7 +1017,7 @@ out_kv "warn threshold (C)" "$twl/$twh (low/high)"
 sep
 
 # fan status
-out_kv "fan status" "$fa"
+out_kv "fan status" "$fa${fal:+ ($fal)}"
 for t in ${at_idxs:-}; do
     out_kv "fan#$t (rpm)" "${fs[$t]}"
 done
