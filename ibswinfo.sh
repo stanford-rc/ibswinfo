@@ -60,7 +60,8 @@ gather_progress() {
     [[ ! -t 2 ]] || printf '\r\033[K%s: %d/%d' "$label" 0 "$total" >&2
     while IFS= read -r line; do
         completed=$((completed+1))
-        [[ ! -t 2 ]] || printf '\r\033[K%s: %d/%d' "$label" "$completed" "$total" >&2
+        [[ ! -t 2 ]] || \
+            printf '\r\033[K%s: %d/%d' "$label" "$completed" "$total" >&2
         [[ -z "$line" ]] || printf '%s\n' "$line"
     done
     [[ ! -t 2 ]] || printf '\n' >&2
@@ -140,7 +141,7 @@ mstr_dec() {
             <<< "${reg[$r]}" | sort -k2n | awk '{printf $NF}')"
 }
 
-# Emit a complete tab-separated row in one write, so parallel workers do not mix.
+# Emit a complete tab-separated row in one write, so workers do not mix.
 cable_row() {
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@"
 }
@@ -150,7 +151,8 @@ cable_record() {
     local port=$1 field value type ident length
     local -A cable=()
     local -a identity=()
-    local -a types=(unknown active optical passive unplugged twisted-pair CPO OE ELS)
+    local -a types=(unknown active optical passive unplugged twisted-pair
+                    CPO OE ELS)
     local -a forms=(QSFP28 QSFP+ SFP28/SFP+ QSA backplane SFP-DD QSFP-DD
                     QSFP-CMIS OSFP C2C DSFP QSFP-split CPO OE ELS)
 
@@ -198,7 +200,8 @@ cable_record() {
             *) value=$length ;;
         esac
     fi
-    cable_row "port$port" ok "${types[$type]:-unknown}" "${identity[@]}" "$value"
+    cable_row "port$port" ok "${types[$type]:-unknown}" \
+        "${identity[@]}" "$value"
 }
 
 # One local-port worker; register buffers are private to the subshell.
@@ -274,8 +277,8 @@ show_cables() {
             else
                 length+=${length:+m}
                 length_column=""
-                [[ "${widths[length]}" == 0 ]] || \
-                    printf -v length_column '%-*s ' "${widths[length]}" "$length"
+                [[ "${widths[length]}" == 0 ]] || printf -v length_column \
+                    '%-*s ' "${widths[length]}" "$length"
                 printf -v value '%-*s %-*s %-*s %s%-*s %s' \
                     "${widths[vendor]}" "$vendor" "${widths[pn]}" "$pn" \
                     "${widths[sn]}" "($sn)" "$length_column" \
@@ -294,7 +297,8 @@ get_module_temp() {
     value=unknown
     if data=$(get_reg MTMP "$idx") && [[ ! "$data" =~ -E- ]]; then
         value=$(awk '$1 == "temperature" {print $NF}' <<< "$data")
-        if [[ "$value" =~ ^0x[[:xdigit:]]{1,8}$ ]] && [[ $((value)) -le 65535 ]]; then
+        if [[ "$value" =~ ^0x[[:xdigit:]]{1,8}$ ]] && \
+           [[ $((value)) -le 65535 ]]; then
             value=$((value))
             [[ $value -ge 32768 ]] && value=$((value-65536))
             value=$((value/8))
@@ -343,7 +347,8 @@ counter_rates() {
     for i in 0 1 2 3; do
         delta=$(decimal_delta "${after[i]}" "${before[i]}") || return 1
         [[ $i -lt 2 ]] && unit=B/s || unit=pkts/s
-        rates[i]=$(LC_ALL=C awk -v d="$delta" -v ns="$elapsed" -v u="$unit" 'BEGIN {
+        rates[i]=$(LC_ALL=C awk -v d="$delta" -v ns="$elapsed" \
+                                -v u="$unit" 'BEGIN {
             split("k M G T P E Z", prefix, " "); v=d*1e9/ns; n=0
             while (v>=999.95 && n<7) {v/=1000; n++}
             printf "%.1f %*s", v, length(u)+1, (n ? prefix[n] : "") u
@@ -364,7 +369,8 @@ counter_record() {
                 value=${value//./}
                 value=${value//[[:space:]]/}
                 [[ "$value" =~ ^(0|[1-9][0-9]{0,19})$ ]] || return 1
-                if [[ ${#value} == 20 && "$value" > 18446744073709551615 ]]; then
+                if [[ ${#value} == 20 && \
+                      "$value" > 18446744073709551615 ]]; then
                     return 1
                 fi
                 [[ -z "${values[$field]+x}" ]] || return 1
@@ -412,7 +418,8 @@ get_port_counters() {
                                    -x "$counter_lid" "$port" 2>&1) && \
            second=$(counter_record "$port" "$data"); then
             elapsed=$(((end+$(date +%s%N))/2-start))
-            if (( elapsed > 0 )) && counter_rates "$first" "$second" "$elapsed"; then
+            if (( elapsed > 0 )) && \
+               counter_rates "$first" "$second" "$elapsed"; then
                 return 0
             fi
             data="counter decreased or invalid sampling interval"
@@ -625,7 +632,8 @@ mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
     else
         counter_lid=$((10#$counter_target))
     fi
-    [[ "$counter_lid" -ge 1 && "$counter_lid" -le 49151 ]] || err "invalid counter LID"
+    [[ "$counter_lid" -ge 1 && "$counter_lid" -le 49151 ]] || \
+        err "invalid counter LID"
     counter_route=()
     if [[ "$dev" == *,* ]]; then
         route=${dev#*,}
@@ -636,7 +644,8 @@ mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
             ca_port=${route#*,}
             [[ "$ca_port" =~ ^[0-9]{1,3}$ ]] || err "invalid counter CA port"
             ca_port=$((10#$ca_port))
-            [[ "$ca_port" -ge 1 && "$ca_port" -le 255 ]] || err "invalid counter CA port"
+            [[ "$ca_port" -ge 1 && "$ca_port" -le 255 ]] || \
+                err "invalid counter CA port"
             counter_route+=(-P "$ca_port")
         fi
     fi
@@ -722,7 +731,7 @@ done <<< "$_regs"
 ## -- cable inventory --------------------------------------------------------
 
 [[ "$opt_C" == 1 ]] && {
-    # Batch workers to overlap MAD requests without launching one per port at once.
+    # Batch workers to overlap MAD requests, without querying all ports at once.
     _cables=$({ for (( p=1; p<=ports; p++ )); do
                   get_cable "$p" &
                   (( p % MAX_JOBS == 0 )) && wait
@@ -742,13 +751,15 @@ done <<< "$_regs"
                             printf '%s\n' "$row"
                         else
                             warn "local port $p: counters unavailable"
-                            printf 'local_port%s\tunavailable\t-\t-\t-\t-\n' "$p"
+                            printf 'local_port%s\tunavailable\t-\t-\t-\t-\n' \
+                                "$p"
                         fi
                     ) &
                     (( p % MAX_JOBS == 0 )) && wait
                 done
                   wait; } | gather_progress "Counters (local ports)" "$ports")
-    [[ -n "$_counters" ]] || { warn "no mapped counter ports found"; query_ret=1; }
+    [[ -n "$_counters" ]] || \
+        { warn "no mapped counter ports found"; query_ret=1; }
     _counters=$(sort -t $'\t' -k1,1V <<< "$_counters")
     duplicates=$(awk -F '\t' 'seen[$1]++ {print $1}' <<< "$_counters")
     [[ -z "$duplicates" ]] || err "duplicate counter port mappings: $duplicates"
@@ -818,7 +829,8 @@ done <<< "$_regs"
 
     # optionally get modules temperature
     [[ "$opt_T" == "1" ]] && {
-        [[ "$nm" -ge 0 && "$nm" -le 255 ]] || err "could not determine module count"
+        [[ "$nm" -ge 0 && "$nm" -le 255 ]] || \
+            err "could not determine module count"
         _qtps=$({ for q in $(seq 1 "$nm"); do
                     get_module_temp "$q" &
                     (( q % MAX_JOBS == 0 )) && wait
