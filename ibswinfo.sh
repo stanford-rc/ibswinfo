@@ -346,7 +346,7 @@ counter_rates() {
     read -r port status after[0] after[1] after[2] after[3] <<< "$second"
     for i in 0 1 2 3; do
         delta=$(decimal_delta "${after[i]}" "${before[i]}") || return 1
-        [[ $i -lt 2 ]] && unit=B/s || unit=pkts/s
+        [[ $i -lt 2 ]] && unit=B/s || unit=pps
         rates[i]=$(LC_ALL=C awk -v d="$delta" -v ns="$elapsed" \
                                 -v u="$unit" 'BEGIN {
             split("k M G T P E Z", prefix, " "); v=d*1e9/ns; n=0
@@ -447,8 +447,8 @@ show_counters() {
         elif [[ "$status" != ok ]]; then
             out_kv "$label" "$status"
         else
-            tx=$(printf 'TX %11s %14s' "$tx" "$txp")
-            rx=$(printf 'RX %11s %14s' "$rx" "$rxp")
+            tx=$(printf 'TX %10s %10s' "$tx" "$txp")
+            rx=$(printf 'RX %10s %10s' "$rx" "$rxp")
             out_kv "$label" "$tx"
             out_kv ""       "$rx"
         fi

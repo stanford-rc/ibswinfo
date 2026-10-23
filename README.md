@@ -246,17 +246,17 @@ In the default output, `-P` appends the current traffic rates instead:
 # ./ibswinfo -d lid-14 -P
 [...]
 -------------------------------------------------
-port#1 traffic     | TX    7.6 kB/s   24.6  pkts/s
-                   | RX    0.0  B/s    0.0  pkts/s
+port#1 traffic     | TX  27.6  B/s   1.0  pps
+                   | RX   0.0  B/s   0.0  pps
 [...]
-port#61 traffic    | TX   67.3 kB/s  257.2  pkts/s
-                   | RX   73.9 MB/s   18.9 kpkts/s
-port#62 traffic    | TX   53.9 kB/s  249.1  pkts/s
-                   | RX   78.9 MB/s   29.5 kpkts/s
-port#63 traffic    | TX    0.0  B/s    0.0  pkts/s
-                   | RX  136.8 MB/s   35.0 kpkts/s
-port#64 traffic    | TX    2.4 MB/s    9.3 kpkts/s
-                   | RX  194.1 MB/s   53.0 kpkts/s
+port#61 traffic    | TX 109.9 MB/s  94.8 kpps
+                   | RX 337.7 MB/s  84.6 kpps
+port#62 traffic    | TX 107.8 MB/s  94.1 kpps
+                   | RX  88.2 MB/s  22.6 kpps
+port#63 traffic    | TX   0.0  B/s   0.0  pps
+                   | RX 264.0 MB/s 129.2 kpps
+port#64 traffic    | TX 558.1 kB/s 258.7  pps
+                   | RX 542.2 MB/s 189.2 kpps
 -------------------------------------------------
 ```
 
