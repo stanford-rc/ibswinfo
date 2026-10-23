@@ -73,6 +73,15 @@ htod() {
     echo $((16#${d//0x/}))
 }
 
+# MTMP temperature field to degrees C: 16-bit two's complement, in 0.125 C
+# units (cf. MLXSW_REG_MTMP_TEMP_TO_MC in the kernel's mlxsw/reg.h)
+ttod() {
+    local t
+    t=$(htod "$1")
+    [[ $t -ge 32768 ]] && t=$((t-65536))
+    echo $((t/8))
+}
+
 # hex to bin
 # $1: hex value to convert
 # $2: num bits to output
@@ -299,9 +308,7 @@ get_module_temp() {
         value=$(awk '$1 == "temperature" {print $NF}' <<< "$data")
         if [[ "$value" =~ ^0x[[:xdigit:]]{1,8}$ ]] && \
            [[ $((value)) -le 65535 ]]; then
-            value=$((value))
-            [[ $value -ge 32768 ]] && value=$((value-65536))
-            value=$((value/8))
+            value=$(ttod "$value")
         else
             value=unknown
         fi
@@ -703,16 +710,29 @@ rid[MSCI]+="index=0x0" # handle main CPLD only
 rid[SPZR]+="swid=0x0"
 rid[MTMP]+="sensor_index=0x0${add_idx:+,$add_idx}${add_tmp_idx:+,$add_tmp_idx}"
 rid[MTCAP]="$add_idx"
-# get registers
+# get registers: workers tag each output line with the register name, so that
+# the short writes can't be torn in the shared pipe (whole dumps can exceed
+# PIPE_BUF), and report their exit status on a trailing line
 _regs=$(for r in $reg_names; do
-            echo "$r" "$(get_reg "$r" "${rid[$r]:-}" |& paste -s -d '@')" &
+            { get_reg "$r" "${rid[$r]:-}" && rc=0 || rc=$?
+              echo "-rc- $rc"; } |
+            while IFS= read -r line; do printf '%s %s\n' "$r" "$line"; done &
         done)
-# store them
-while read -r r v; do
-    o=${v//@/$'\n'}
-    [[ "$o" =~ -E- ]] && [[ $r != MGPIR ]] && err "${o/-E-/}"
-    reg[$r]=$o
+# regroup the lines per register, and check that the queries succeeded
+declare -A rrc
+while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    r=${line%% *} line=${line#* }
+    [[ "$line" == "-rc- "* ]] && rrc[$r]=${line#-rc- } || reg[$r]+=$line$'\n'
 done <<< "$_regs"
+for r in $reg_names; do
+    reg[$r]=${reg[$r]:-}
+    reg[$r]=${reg[$r]%$'\n'}
+    [[ "${rrc[$r]:-}" == 0 && ! "${reg[$r]}" =~ -E- ]] || [[ $r == MGPIR ]] || {
+        o=${reg[$r]##*$'\n'} o=${o#-E- }
+        err "$r: ${o:-no output}"
+    }
+done
 
 
 ## -- local ports ------------------------------------------------------------
@@ -833,13 +853,10 @@ done <<< "$_regs"
     s_uptime=$(htod "$h_uptime")
 
     # temperatures
-    _tp=$(htod "$(awk '/^temperature /    {printf $NF}' <<< "${reg[MTMP]}")")
-    _mt=$(htod "$(awk '/^max_temperature / {printf $NF}' <<< "${reg[MTMP]}")")
-    _twl=$(htod "$(awk '/^temperature_threshold_lo / {printf $NF}' <<< "${reg[MTMP]}")")
-    _twh=$(htod "$(awk '/^temperature_threshold_hi / {printf $NF}' <<< "${reg[MTMP]}")")
-    tp=$((_tp/8))
-    mt=$((_mt/8))
-    twl=$((_twl/8)) twh=$((_twh/8))
+    tp=$(ttod "$(awk '/^temperature /    {printf $NF}' <<< "${reg[MTMP]}")")
+    mt=$(ttod "$(awk '/^max_temperature / {printf $NF}' <<< "${reg[MTMP]}")")
+    twl=$(ttod "$(awk '/^temperature_threshold_lo / {printf $NF}' <<< "${reg[MTMP]}")")
+    twh=$(ttod "$(awk '/^temperature_threshold_hi / {printf $NF}' <<< "${reg[MTMP]}")")
 
     # optionally get modules temperature
     [[ "$opt_T" == "1" ]] && {
@@ -877,7 +894,13 @@ done <<< "$_regs"
                              awk '/^rpm / {print $NF}')" &
              done)
     while read -r t s; do
-        fs[t]=$(htod "${s:-0}")
+        [[ -n "$t" ]] || continue
+        if [[ -n "$s" ]]; then
+            fs[t]=$(htod "$s")
+        else
+            warn "fan#$t: speed unavailable"
+            fs[t]=unavailable query_ret=1
+        fi
     done <<< "$_fsps"
 }
 
@@ -929,7 +952,7 @@ case $out in
         out_kv "revision" "$rv"
         out_kv "fw_version" "$(printf "%d.%04d.%04d" "$maj" "$min" "$sub")"
         out_kv "cpld" "$cpld"
-        [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
+        [[ -n "$psu_idxs" && "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
             for i in $psu_idxs; do
                 out_kv "psu$i.part_number"   "${ps[$i.pn]}"
                 out_kv "psu$i.serial" "${ps[$i.sn]}"
@@ -940,7 +963,7 @@ case $out in
         ;;
 
     status)
-        [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
+        [[ -n "$psu_idxs" && "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
             for i in $psu_idxs; do
                 out_kv "psu$i.status"  "${ps[$i.pr]}"
                 out_kv "psu$i.dc"      "${ps[$i.dc]}"
@@ -957,7 +980,7 @@ case $out in
 
     vitals)
         out_kv "uptime (sec)" "$s_uptime"
-        [[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
+        [[ -n "$psu_idxs" && "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
             for i in $psu_idxs; do
                 out_kv "psu$i.power (W)" "${ps[$i.wt]}"
             done
@@ -995,7 +1018,7 @@ out_kv "CPLD" "$cpld"
 sep
 out_kv "uptime (d-h:m:s)" "$(sec_to_dhms "$s_uptime")"
 sep
-[[ "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
+[[ -n "$psu_idxs" && "${ps[${psu_idxs:0:1}.pr]}" != "" ]] && {
     for i in $psu_idxs; do
         out_kv "PSU$i status"    "${ps[$i.pr]}"
         out_kv "     P/N"        "${ps[$i.pn]}"
