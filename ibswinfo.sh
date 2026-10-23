@@ -171,7 +171,7 @@ cable_record() {
     fi
 
     for field in vendor_name vendor_pn vendor_sn; do
-        value=$(mstr_dec "^$field[[]" PDDR)
+        value=$(mstr_dec "^${field}[[]" PDDR)
         value=$(tr '\t\r\n' '   ' <<< "$value" | sed 's/[[:space:]]*$//')
         identity+=("${value:-unknown}")
     done
@@ -288,8 +288,8 @@ show_cables() {
 
 # Module temperature worker, using the same sensor indexes as -T.
 get_module_temp() {
-    local q=$1 data value
-    local idx="sensor_index=0x$(dtoh "$((q+63))")${add_idx:+,$add_idx}"
+    local q=$1 data value idx
+    idx="sensor_index=0x$(dtoh "$((q+63))")${add_idx:+,$add_idx}"
     idx+=${add_tmp_idx:+,$add_tmp_idx}
     value=unknown
     if data=$(get_reg MTMP "$idx") && [[ ! "$data" =~ -E- ]]; then
