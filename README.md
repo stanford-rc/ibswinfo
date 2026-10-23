@@ -121,11 +121,12 @@ we'll complete the list.
 * Power supply information (status, consumption, part and serial numbers)
 * Temperatures (including QSFP modules temp.)
 * Fan speeds and status
+* Port traffic counters (cumulative bytes/packets totals, or current rates)
 
 ## Usage
 
 ```none
-Usage: ibswinfo.sh -d <device> [-T] [-C] [-o <inventory|vitals|status>] [-S <description>]
+Usage: ibswinfo.sh -d <device> [-T] [-C] [-P] [-o <inventory|vitals|status>] [-S <description>]
 
   global options:
     -d <device>             MST device path ("mst status" shows devices list)
@@ -134,6 +135,7 @@ Usage: ibswinfo.sh -d <device> [-T] [-C] [-o <inventory|vitals|status>] [-S <des
     -o <output_category>    Only display inventory|vitals|status information
     -T                      get QSFP modules temperature
     -C                      get cable information
+    -P                      get port traffic counters
 
   set info:
     -S <description>        set device description (64 bytes max.)
@@ -211,6 +213,55 @@ port#17 cable      | Mellanox 0684G2       (<redacted>) 10m QSFP+ active
 
 Ports use IB numbering. Unknown cable lengths are omitted, and unplugged ports
 are marked `unplugged`. Use `-o inventory -C` for key/value output.
+
+### Port traffic counters
+
+`ibswinfo` can also report per-port traffic, using the extended 64-bit counters
+that `perfquery -x` (from `infiniband-diags`) reads from the switch (counters
+are never reset).
+
+With `-o vitals`, `-P` adds the cumulative TX/RX bytes and packets totals for
+each IB port to the hardware vitals:
+
+```
+# ./ibswinfo -d lid-14 -o vitals -P
+[...]
+fan#8.speed (rpm)  : 5421
+port1.tx_bytes     : 3299135337352
+port1.rx_bytes     : 106268438855896
+port1.tx_packets   : 879938006
+port1.rx_packets   : 27190158432
+port2.tx_bytes     : 4536076770588
+port2.rx_bytes     : 7195872703540
+port2.tx_packets   : 1448508819
+port2.rx_packets   : 3243159117
+[...]
+```
+
+In the default output, `-P` appends the current traffic rates instead:
+
+```
+# ./ibswinfo -d lid-14 -P
+[...]
+-------------------------------------------------
+port#1 traffic     | TX    7.6 kB/s   24.6  pkts/s
+                   | RX    0.0  B/s    0.0  pkts/s
+[...]
+port#61 traffic    | TX   67.3 kB/s  257.2  pkts/s
+                   | RX   73.9 MB/s   18.9 kpkts/s
+port#62 traffic    | TX   53.9 kB/s  249.1  pkts/s
+                   | RX   78.9 MB/s   29.5 kpkts/s
+port#63 traffic    | TX    0.0  B/s    0.0  pkts/s
+                   | RX  136.8 MB/s   35.0 kpkts/s
+port#64 traffic    | TX    2.4 MB/s    9.3 kpkts/s
+                   | RX  194.1 MB/s   53.0 kpkts/s
+-------------------------------------------------
+```
+
+To send the queries through a specific local HCA port, rather than the one
+`perfquery` and MFT would pick on their own, append it to the LID, like
+`-d lid-14,mlx5_0,1`. This `,CA,port` suffix only works when addressing switches
+by LID, not with `SW_*` MST device names.
 
 ### Targeted outputs
 
