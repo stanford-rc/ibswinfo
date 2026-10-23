@@ -602,7 +602,7 @@ done
 # MFT version
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 mft_req="4.18.0"      # minimum required MFT version
-mft_max="4.31.0"      # highest MFT version tested
+mft_max="4.37.0"      # highest MFT version tested
 mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 [[ ${mft_cur//./} -lt ${mft_req//./} ]] && \
     err "MFT version must be >= $mft_req (current version is $mft_cur)"
