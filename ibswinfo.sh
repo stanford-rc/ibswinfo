@@ -659,6 +659,9 @@ mft_cur=$(mst version | awk '{gsub(/,/,""); print $3}' | cut -d- -f1)
 # MFCR  -  Management Fan Control Register
 # FORE  -  Fan Out of Range Event Register
 # SPZR  -  ...? node description
+# PMLP  -  Ports Module to Local Port Register
+# PLIB  -  ...? local to IB port mapping
+# PDDR  -  Port Diagnostics Database Register
 
 # gather register values
 declare -A reg
